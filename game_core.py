@@ -1,104 +1,108 @@
 """
-Núcleo do Boggle: geração de grade, validação de palavra no tabuleiro,
-pontuação individual e resolução da regra clássica (anula repetidas).
-Sem dependência de framework — dá pra testar isolado.
+Núcleo do Boggle v2.
+- Tabuleiro NxN (3..10)
+- Pontuação: base = nº de letras (min 3). Exclusiva (1 jogador) vale o DOBRO.
+  Repetida (2+ jogadores) vale o valor BASE. Palavra < 3 letras = 0.
+- Times: pontos somados entre membros.
+- Placar de partida e agregação de campeonato (por sets).
 """
 import json
 import random
 import os
-
+ 
 BASE = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(BASE, "words.json"), encoding="utf-8") as f:
     WORDS = set(json.load(f))
-
-# distribuição de letras ponderada pro PT-BR (mais vogais e consoantes comuns)
+ 
 POOL = ("AAAAAAAAAAAAAABBCCCCDDDDEEEEEEEEEEEEEEFFGGGHIIIIIIIIII"
         "JLLLLLMMMMNNNNNNOOOOOOOOOOOOPPPPQRRRRRRRRRSSSSSSSS"
         "TTTTTTTUUUUUUVVXZ")
-
 VOGAIS = "AEIOU"
-
-
-def gerar_grade():
-    """16 letras (4x4). Garante ao menos 5 vogais pra jogabilidade."""
-    g = [random.choice(POOL) for _ in range(16)]
-    v = sum(1 for c in g if c in VOGAIS)
-    while v < 5:
-        k = random.randrange(16)
-        if g[k] not in VOGAIS:
-            g[k] = random.choice(VOGAIS)
-            v += 1
-    return g
-
-
-def _vizinhos(a, b):
-    ra, ca = divmod(a, 4)
-    rb, cb = divmod(b, 4)
+# consoantes ponderadas por frequência no PT-BR (mais R,S,T,N,L,M,C,D,P)
+POOL_CONS = "BCCCCDDDDFFGGHJLLLLLMMMMNNNNNNPPPPQRRRRRRRRRSSSSSSSSTTTTTTTVVXZ"
+ 
+ 
+def gerar_grade(n=4):
+    total = n * n
+    # monta com proporção fixa: ~40% vogais, 60% consoantes
+    n_vog = max(1, round(total * 0.40))
+    letras = [random.choice(VOGAIS) for _ in range(n_vog)]
+    letras += [random.choice(POOL_CONS) for _ in range(total - n_vog)]
+    random.shuffle(letras)
+    return letras
+ 
+ 
+def _vizinhos(a, b, n):
+    ra, ca = divmod(a, n)
+    rb, cb = divmod(b, n)
     return abs(ra - rb) <= 1 and abs(ca - cb) <= 1 and a != b
-
-
-def caminho_valido(grade, caminho):
-    """caminho = lista de índices 0..15. Verifica adjacência e não-repetição."""
+ 
+ 
+def caminho_valido(caminho, n):
     if not caminho or len(set(caminho)) != len(caminho):
         return False
+    total = n * n
+    if any(i < 0 or i >= total for i in caminho):
+        return False
     for i in range(len(caminho) - 1):
-        if not _vizinhos(caminho[i], caminho[i + 1]):
+        if not _vizinhos(caminho[i], caminho[i + 1], n):
             return False
     return True
-
-
+ 
+ 
 def palavra_do_caminho(grade, caminho):
     return "".join(grade[i] for i in caminho)
-
-
-def pontos(palavra):
-    n = len(palavra)
-    if n < 3:
-        return 0
-    if n <= 4:
-        return 1
-    if n == 5:
-        return 2
-    if n == 6:
-        return 3
-    if n == 7:
-        return 5
-    return 11
-
-
+ 
+ 
+def _n_de_grade(grade):
+    return int(round(len(grade) ** 0.5))
+ 
+ 
 def validar_submissao(grade, caminho):
-    """Retorna (ok, palavra, pontos) pra uma tentativa individual."""
-    if not caminho_valido(grade, caminho):
-        return False, "", 0
+    n = _n_de_grade(grade)
+    if not caminho_valido(caminho, n):
+        return False, ""
     w = palavra_do_caminho(grade, caminho)
     if len(w) < 3 or w not in WORDS:
-        return False, w, 0
-    return True, w, pontos(w)
-
-
+        return False, w
+    return True, w
+ 
+ 
+def pontos_base(palavra):
+    n = len(palavra)
+    return n if n >= 3 else 0
+ 
+ 
 def resolver_placar(jogadores):
-    """
-    jogadores: dict {nome: set(palavras_validas)}.
-    Regra clássica: palavra achada por 2+ jogadores é anulada pra todos.
-    Retorna dict {nome: {'palavras': [...], 'anuladas': [...], 'pontos': int}}.
-    """
     contagem = {}
     for palavras in jogadores.values():
         for w in palavras:
             contagem[w] = contagem.get(w, 0) + 1
-
+ 
     resultado = {}
     for nome, palavras in jogadores.items():
-        validas, anuladas, total = [], [], 0
+        exclusivas, repetidas, total = [], [], 0
         for w in palavras:
-            if contagem[w] >= 2:
-                anuladas.append(w)
+            base = pontos_base(w)
+            if contagem[w] == 1:
+                total += base * 2
+                exclusivas.append(w)
             else:
-                validas.append(w)
-                total += pontos(w)
+                total += base
+                repetidas.append(w)
         resultado[nome] = {
-            "palavras": sorted(validas),
-            "anuladas": sorted(anuladas),
+            "exclusivas": sorted(exclusivas),
+            "repetidas": sorted(repetidas),
             "pontos": total,
         }
     return resultado
+ 
+ 
+def resolver_placar_times(jogadores, times):
+    individual = resolver_placar(jogadores)
+    placar_times = {}
+    for nome, dados in individual.items():
+        t = times.get(nome, "Sem time")
+        placar_times[t] = placar_times.get(t, 0) + dados["pontos"]
+    return individual, placar_times
+    
