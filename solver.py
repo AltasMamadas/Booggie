@@ -16,30 +16,47 @@ def construir_trie(palavras):
     return raiz
 
 
-def _vizinhos_idx(n):
-    """Pré-computa vizinhos de cada célula pra grade n x n."""
-    viz = [[] for _ in range(n * n)]
-    for i in range(n * n):
-        r, c = divmod(i, n)
+def dims(grade, linhas=None, colunas=None):
+    """
+    Descobre (linhas, colunas) de uma grade.
+    Se não vier explícito, assume quadrada (compatível com o código antigo).
+    """
+    if linhas and colunas:
+        return linhas, colunas
+    n = int(round(len(grade) ** 0.5))
+    return n, n
+
+
+def _vizinhos_idx(linhas, colunas):
+    """Pré-computa vizinhos de cada célula pra grade linhas x colunas."""
+    total = linhas * colunas
+    viz = [[] for _ in range(total)]
+    for i in range(total):
+        r, c = divmod(i, colunas)
         for dr in (-1, 0, 1):
             for dc in (-1, 0, 1):
                 if dr == 0 and dc == 0:
                     continue
                 nr, nc = r + dr, c + dc
-                if 0 <= nr < n and 0 <= nc < n:
-                    viz[i].append(nr * n + nc)
+                if 0 <= nr < linhas and 0 <= nc < colunas:
+                    viz[i].append(nr * colunas + nc)
     return viz
 
 
-def contar_palavras(grade, trie, n=None, limite_palavras=None, deadline=None):
+def contar_palavras(grade, trie, n=None, limite_palavras=None, deadline=None,
+                    linhas=None, colunas=None):
     """
     Retorna (qtd_palavras, palavra_mais_longa_len) encontráveis na grade.
     - limite_palavras: para cedo se atingir esse total (economia).
     - deadline: timestamp (time.time()) limite; para se estourar.
+    - linhas/colunas: pra grades retangulares (ex.: 4x6). Sem isso, assume quadrada.
     """
-    if n is None:
-        n = int(round(len(grade) ** 0.5))
-    viz = _vizinhos_idx(n)
+    if linhas is None or colunas is None:
+        if n is not None:
+            linhas = colunas = n
+        else:
+            linhas, colunas = dims(grade)
+    viz = _vizinhos_idx(linhas, colunas)
     encontradas = set()
     maior = [0]
     total = len(grade)
@@ -81,11 +98,14 @@ def contar_palavras(grade, trie, n=None, limite_palavras=None, deadline=None):
     return len(encontradas), maior[0]
 
 
-def listar_palavras(grade, trie, n=None):
+def listar_palavras(grade, trie, n=None, linhas=None, colunas=None):
     """Como contar_palavras, mas devolve o conjunto de palavras encontráveis."""
-    if n is None:
-        n = int(round(len(grade) ** 0.5))
-    viz = _vizinhos_idx(n)
+    if linhas is None or colunas is None:
+        if n is not None:
+            linhas = colunas = n
+        else:
+            linhas, colunas = dims(grade)
+    viz = _vizinhos_idx(linhas, colunas)
     encontradas = set()
     total = len(grade)
 

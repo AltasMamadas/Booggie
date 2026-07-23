@@ -59,8 +59,10 @@ VOGAIS = "AEIOU"
 POOL_CONS = "BCCCCDDDDFFGGHJLLLLLMMMMNNNNNNPPPPQRRRRRRRRRSSSSSSSSTTTTTTTVVXZ"
 
 
-def _gerar_grade_crua(n=4):
-    total = n * n
+def _gerar_grade_crua(linhas=4, colunas=None):
+    if colunas is None:
+        colunas = linhas
+    total = linhas * colunas
     # monta com proporção fixa: ~40% vogais, 60% consoantes
     n_vog = max(1, round(total * 0.40))
     letras = [random.choice(VOGAIS) for _ in range(n_vog)]
@@ -84,18 +86,21 @@ def _nota_dificuldade(qtd, maior, dificuldade, alvo=0):
     return -abs(qtd - alvo)
 
 
-def gerar_grade(n=4, candidatas=30, dificuldade="medio"):
+def gerar_grade(n=4, candidatas=30, dificuldade="medio", colunas=None):
     """
     Gera 'candidatas' grades e escolhe a que melhor atende à dificuldade.
+    n = linhas; colunas = colunas (se None, grade quadrada n x n).
     Retorna (grade, qtd_palavras, maior_palavra).
     """
     if dificuldade not in ("facil", "medio", "dificil"):
         dificuldade = "medio"
+    if colunas is None:
+        colunas = n
 
     avaliadas = []
     for _ in range(max(1, candidatas)):
-        g = _gerar_grade_crua(n)
-        qtd, maior = _solver.contar_palavras(g, _TRIE, n)
+        g = _gerar_grade_crua(n, colunas)
+        qtd, maior = _solver.contar_palavras(g, _TRIE, linhas=n, colunas=colunas)
         avaliadas.append((g, qtd, maior))
 
     alvo = 0
@@ -110,25 +115,30 @@ def gerar_grade(n=4, candidatas=30, dificuldade="medio"):
     return melhor[0], melhor[1], melhor[2]
 
 
-def palavras_da_grade(grade, n=None):
+def palavras_da_grade(grade, n=None, colunas=None):
     """Todas as palavras encontráveis na grade (usa a trie atual)."""
+    if colunas is not None:
+        return _solver.listar_palavras(grade, _TRIE, linhas=n, colunas=colunas)
     return _solver.listar_palavras(grade, _TRIE, n)
 
 
-def _vizinhos(a, b, n):
-    ra, ca = divmod(a, n)
-    rb, cb = divmod(b, n)
+def _vizinhos(a, b, n, colunas=None):
+    """n = colunas quando a grade é quadrada; senão passe colunas explicitamente."""
+    cols = colunas if colunas is not None else n
+    ra, ca = divmod(a, cols)
+    rb, cb = divmod(b, cols)
     return abs(ra - rb) <= 1 and abs(ca - cb) <= 1 and a != b
 
 
-def caminho_valido(caminho, n):
+def caminho_valido(caminho, n, colunas=None):
+    cols = colunas if colunas is not None else n
     if not caminho or len(set(caminho)) != len(caminho):
         return False
-    total = n * n
+    total = n * cols
     if any(i < 0 or i >= total for i in caminho):
         return False
     for i in range(len(caminho) - 1):
-        if not _vizinhos(caminho[i], caminho[i + 1], n):
+        if not _vizinhos(caminho[i], caminho[i + 1], n, cols):
             return False
     return True
 
@@ -141,9 +151,10 @@ def _n_de_grade(grade):
     return int(round(len(grade) ** 0.5))
 
 
-def validar_submissao(grade, caminho):
-    n = _n_de_grade(grade)
-    if not caminho_valido(caminho, n):
+def validar_submissao(grade, caminho, linhas=None, colunas=None):
+    if linhas is None or colunas is None:
+        linhas = colunas = _n_de_grade(grade)
+    if not caminho_valido(caminho, linhas, colunas):
         return False, ""
     w = palavra_do_caminho(grade, caminho)
     if len(w) < 3 or w not in WORDS:
