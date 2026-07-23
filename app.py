@@ -17,6 +17,7 @@ def estado_inicial():
         "fase": "lobby",           # lobby | jogando | resultado | fim_campeonato
         "config": {
             "tamanho": 4,
+            "dificuldade": "medio",   # facil | medio | dificil
             "duracao": 180,
             "modo": "individual",  # individual | times
             "n_partidas": 1,       # campeonato: quantas partidas
@@ -31,6 +32,8 @@ def estado_inicial():
         "rodada": 0,               # nº da partida atual no campeonato (1-based)
         "vitorias": {},            # acumulado de sets: nome(ou time) -> nº vitórias
         "historico": [],           # [{rodada, vencedor}]
+        # ranking da sessão (não zera entre campeonatos; só no /api/zerar_ranking)
+        "ranking": {},             # nome -> {"total":int, "melhor":int, "partidas":int}
     }
 
 estado = estado_inicial()
@@ -74,6 +77,16 @@ def _checar_fim():
         else:
             estado["placar"] = gc.resolver_placar(jogadores)
             estado["placar_times"] = {}
+
+        # ranking da sessão: acumula pontos individuais de cada jogador
+        for nome, dados in estado["placar"].items():
+            r = estado["ranking"].setdefault(
+                nome, {"total": 0, "melhor": 0, "partidas": 0}
+            )
+            r["total"] += dados["pontos"]
+            r["partidas"] += 1
+            if dados["pontos"] > r["melhor"]:
+                r["melhor"] = dados["pontos"]
 
         # contabiliza vitória do set
         venc = _vencedor_da_partida()
@@ -125,6 +138,8 @@ def config():
         c = estado["config"]
         if "tamanho" in data:
             c["tamanho"] = max(3, min(10, int(data["tamanho"])))
+        if "dificuldade" in data and data["dificuldade"] in ("facil", "medio", "dificil"):
+            c["dificuldade"] = data["dificuldade"]
         if "duracao" in data:
             c["duracao"] = max(30, min(600, int(data["duracao"])))
         if "modo" in data and data["modo"] in ("individual", "times"):
@@ -159,7 +174,10 @@ def iniciar():
                 estado["vitorias"] = {}
                 estado["historico"] = []
         estado["fase"] = "jogando"
-        grade, qtd_palavras, maior = gc.gerar_grade(estado["config"]["tamanho"])
+        grade, qtd_palavras, maior = gc.gerar_grade(
+            estado["config"]["tamanho"],
+            dificuldade=estado["config"].get("dificuldade", "medio"),
+        )
         estado["grade"] = grade
         estado["grade_info"] = {"palavras": qtd_palavras, "maior": maior}
         estado["inicio"] = time.time()
@@ -170,6 +188,45 @@ def iniciar():
         estado["placar"] = {}
         estado["placar_times"] = {}
     return jsonify({"ok": True})
+
+
+@app.route("/api/zerar_ranking", methods=["POST"])
+def zerar_ranking():
+    with LOCK:
+        estado["ranking"] = {}
+    return jsonify({"ok": True})
+
+
+@app.route("/api/palavras", methods=["GET", "POST"])
+def palavras_extras():
+    """
+    Palavras adicionadas pelos jogadores nesta sessão.
+    Ficam em memória (somem se o servidor reiniciar) e valem pra todos.
+    """
+    if request.method == "GET":
+        return jsonify({"palavras": sorted(gc.EXTRAS)})
+
+    data = request.json or {}
+    texto = (data.get("palavras") or "").upper()
+    acao = data.get("acao", "add")
+    novas = [p.strip() for p in texto.replace(",", " ").replace("\n", " ").split()]
+    novas = ["".join(c for c in p if c.isalpha()) for p in novas]
+    novas = [p for p in novas if 3 <= len(p) <= 16]
+
+    aplicadas, ignoradas = [], []
+    with LOCK:
+        for p in novas:
+            if acao == "remover":
+                (aplicadas if gc.remover_palavra(p) else ignoradas).append(p)
+            else:
+                (aplicadas if gc.adicionar_palavra(p) else ignoradas).append(p)
+    return jsonify({
+        "ok": True,
+        "acao": acao,
+        "aplicadas": aplicadas,      # de fato adicionadas/removidas
+        "ignoradas": ignoradas,      # já existiam no dicionário base, ou não eram extras
+        "total_extras": len(gc.EXTRAS),
+    })
 
 
 @app.route("/api/nova", methods=["POST"])
@@ -232,6 +289,7 @@ def get_estado():
             "placar_times": estado["placar_times"],
             "vitorias": estado["vitorias"],
             "historico": estado["historico"],
+            "ranking": estado["ranking"],
         })
 
 

@@ -3,23 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Boggle Local</title>
+<title>Boggle</title>
 <style>
-  :root{--madeira:#7a5c3e;--creme:#fdfaf3;--borda:#cbb894;--fundo:#f4ecdd;--texto:#3a2f22;}
+  :root{--madeira:#7a5c3e;--creme:#fdfaf3;--borda:#cbb894;--fundo:#f4ecdd;--texto:#3a2f22;
+        --verde:#3B6D11;--vermelho:#A32D2D;}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     background:var(--fundo);color:var(--texto);display:flex;justify-content:center;min-height:100vh;padding:16px;}
   .wrap{width:100%;max-width:460px;}
-  .logo{font-size:26px;font-weight:700;color:var(--madeira);letter-spacing:1px;text-align:center;margin-bottom:2px;}
+  .cabecalho{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
+  .logo{font-size:26px;font-weight:700;color:var(--madeira);letter-spacing:1px;}
+  .btn-cfg{width:auto;padding:8px 12px;background:transparent;color:var(--madeira);
+    border:1px solid var(--borda);border-radius:9px;font-size:18px;margin:0;}
   .sub{text-align:center;color:#9a8a72;font-size:13px;margin-bottom:18px;}
   .hidden{display:none!important;}
-  input,select{width:100%;padding:13px;font-size:16px;border:1px solid var(--borda);border-radius:10px;
-    background:var(--creme);margin-bottom:10px;color:var(--texto);}
+  input,select,textarea{width:100%;padding:13px;font-size:16px;border:1px solid var(--borda);
+    border-radius:10px;background:var(--creme);margin-bottom:10px;color:var(--texto);font-family:inherit;}
+  textarea{min-height:80px;resize:vertical;}
   button{width:100%;padding:14px;font-size:16px;font-weight:600;background:var(--madeira);
     color:#fff;border:none;border-radius:10px;cursor:pointer;margin-bottom:8px;}
   button:active{background:#5c4530;}
   button.sec{background:#e8dcc4;color:var(--madeira);}
+  button.mini{padding:9px;font-size:14px;}
   .card{background:var(--creme);border:1px solid var(--borda);border-radius:12px;padding:16px;margin-bottom:14px;}
+  .card h3{margin:0 0 12px;font-size:12px;color:#9a8a72;text-transform:uppercase;letter-spacing:.8px;}
+  .card h3.mt{margin-top:18px;}
   .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
   .stat .lbl{font-size:11px;color:#9a8a72;}.stat .val{font-size:22px;font-weight:700;}
   .stats{display:flex;gap:20px;}
@@ -37,28 +45,59 @@
   .chip{background:#f0e7d4;color:var(--madeira);border:1px solid var(--borda);border-radius:7px;
     padding:4px 9px;font-size:13px;font-weight:600;}
   .chip.exc{background:var(--madeira);color:#fff;border-color:var(--madeira);}
-  .chip.rep{opacity:.7;}
+  .chip.rep{opacity:.65;}
   .plinha{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #eee3cf;}
+  .plinha:last-child{border-bottom:none;}
   .plinha .nome{font-weight:600;}.plinha .pts{font-weight:700;color:var(--madeira);}
-  .plinha .time-badge{font-size:11px;background:#e8dcc4;color:var(--madeira);padding:2px 7px;border-radius:10px;margin-left:6px;}
-  .lista-j{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .plinha.eu{background:#f0e7d4;margin:0 -8px;padding:9px 8px;border-radius:8px;}
+  .time-badge{font-size:11px;background:#e8dcc4;color:var(--madeira);padding:2px 7px;border-radius:10px;margin-left:6px;}
+  .lista-j{display:flex;flex-wrap:wrap;gap:6px;}
   .badge{background:#e8dcc4;color:var(--madeira);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;}
-  h3{margin:14px 0 8px;font-size:13px;color:#9a8a72;text-transform:uppercase;letter-spacing:.5px;}
   .venc{font-size:17px;text-align:center;color:var(--madeira);font-weight:700;margin-bottom:12px;}
   .cfg-linha{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
-  .cfg-linha label{font-size:14px;min-width:95px;color:var(--texto);}
+  .cfg-linha:last-child{margin-bottom:0;}
+  .cfg-linha label{font-size:14px;min-width:92px;color:var(--texto);}
   .cfg-linha select,.cfg-linha input{margin-bottom:0;}
-  .row2{display:flex;gap:8px;}.row2>*{flex:1;}
-  .sets{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0;}
+  .aviso{font-size:12px;color:#9a8a72;text-align:center;margin-top:4px;}
+  .aviso.left{text-align:left;margin-top:8px;}
+  /* destaque do meu resultado */
+  .meu-resultado{background:var(--madeira);color:#fff;border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;}
+  .meu-resultado .pts-grande{font-size:46px;font-weight:700;line-height:1;}
+  .meu-resultado .rot{font-size:12px;opacity:.85;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+  .meu-resultado .detalhe{font-size:13px;opacity:.9;margin-top:8px;}
+  .quebra{display:flex;justify-content:center;gap:18px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.25);}
+  .quebra div{text-align:center;}
+  .quebra .n{font-size:19px;font-weight:700;}
+  .quebra .l{font-size:11px;opacity:.85;}
+  .pos-medalha{font-size:14px;opacity:.95;margin-top:6px;}
+  /* slider de dificuldade */
+  .dif-wrap{display:flex;gap:6px;}
+  .dif-op{flex:1;text-align:center;padding:10px 4px;border:1px solid var(--borda);border-radius:9px;
+    background:var(--creme);font-size:13px;font-weight:600;color:var(--madeira);cursor:pointer;}
+  .dif-op.sel{background:var(--madeira);color:#fff;border-color:var(--madeira);}
+  .sets{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
   .set-item{background:var(--creme);border:1px solid var(--borda);border-radius:10px;padding:8px 14px;text-align:center;}
   .set-item .n{font-size:22px;font-weight:700;color:var(--madeira);}
   .set-item .l{font-size:12px;color:#9a8a72;}
-  .aviso{font-size:12px;color:#9a8a72;text-align:center;margin-top:4px;}
+  .rank-linha{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee3cf;}
+  .rank-linha:last-child{border-bottom:none;}
+  .rank-pos{width:26px;font-weight:700;color:#9a8a72;font-size:14px;}
+  .rank-nome{flex:1;font-weight:600;}
+  .rank-vals{text-align:right;font-size:13px;color:#7a6b55;}
+  .rank-vals b{color:var(--madeira);font-size:15px;}
+  .row2{display:flex;gap:8px;}.row2>*{flex:1;}
+  .switch{display:flex;align-items:center;justify-content:space-between;padding:9px 0;}
+  .switch label{font-size:14px;}
+  input[type=checkbox]{width:auto;margin:0;transform:scale(1.3);}
+  input[type=range]{width:100%;margin:0;padding:0;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="logo">BOGGLE</div>
+  <div class="cabecalho">
+    <div class="logo">BOGGLE</div>
+    <button class="btn-cfg" onclick="abrirConfig()" title="Configurações">⚙️</button>
+  </div>
   <div class="sub">jogo local · mesma grade pra todos</div>
 
   <!-- LOGIN -->
@@ -72,25 +111,12 @@
   <!-- LOBBY -->
   <div id="tela-lobby" class="hidden">
     <div class="card">
-      <b>Na sala (<span id="qtd">0</span>)</b>
+      <h3>Na sala (<span id="qtd">0</span>)</h3>
       <div class="lista-j" id="lista-j"></div>
     </div>
 
     <div class="card">
-      <h3 style="margin-top:0">Configuração</h3>
-      <div class="cfg-linha">
-        <label>Tabuleiro</label>
-        <select id="cfg-tamanho" onchange="salvarConfig()">
-          <option value="3">3 × 3</option>
-          <option value="4" selected>4 × 4</option>
-          <option value="5">5 × 5</option>
-          <option value="6">6 × 6</option>
-          <option value="7">7 × 7</option>
-          <option value="8">8 × 8</option>
-          <option value="9">9 × 9</option>
-          <option value="10">10 × 10</option>
-        </select>
-      </div>
+      <h3>Definições de jogo</h3>
       <div class="cfg-linha">
         <label>Tempo</label>
         <select id="cfg-duracao" onchange="salvarConfig()">
@@ -117,23 +143,45 @@
         </select>
       </div>
       <div id="cfg-time-box" class="hidden">
-        <h3>Seu time</h3>
-        <div class="row2">
-          <input id="cfg-time" placeholder="Nome do time" maxlength="16" oninput="salvarTime()">
-        </div>
-        <div class="aviso">Jogadores com o mesmo nome de time jogam juntos.</div>
+        <h3 class="mt">Seu time</h3>
+        <input id="cfg-time" placeholder="Nome do time" maxlength="16" oninput="salvarTime()">
+        <div class="aviso left">Quem escrever o mesmo nome joga junto.</div>
       </div>
     </div>
 
+    <div class="card">
+      <h3>Tabuleiro</h3>
+      <div class="cfg-linha">
+        <label>Tamanho</label>
+        <select id="cfg-tamanho" onchange="salvarConfig()">
+          <option value="3">3 × 3</option>
+          <option value="4" selected>4 × 4</option>
+          <option value="5">5 × 5</option>
+          <option value="6">6 × 6</option>
+          <option value="7">7 × 7</option>
+          <option value="8">8 × 8</option>
+          <option value="9">9 × 9</option>
+          <option value="10">10 × 10</option>
+        </select>
+      </div>
+      <h3 class="mt">Dificuldade</h3>
+      <div class="dif-wrap">
+        <div class="dif-op" data-d="facil" onclick="escolherDif('facil')">Fácil</div>
+        <div class="dif-op sel" data-d="medio" onclick="escolherDif('medio')">Médio</div>
+        <div class="dif-op" data-d="dificil" onclick="escolherDif('dificil')">Difícil</div>
+      </div>
+      <div class="aviso left" id="dif-desc">Médio: equilíbrio entre quantidade e desafio.</div>
+    </div>
+
     <button onclick="iniciar()">Iniciar <span id="lbl-inicio">partida</span></button>
-    <div class="aviso">Qualquer um pode configurar e iniciar.</div>
+    <div class="aviso">Qualquer um pode configurar e iniciar. Vale pra todos.</div>
   </div>
 
   <!-- JOGO -->
   <div id="tela-jogo" class="hidden">
     <div class="rodada-tag" id="rodada-tag"></div>
     <div class="top">
-      <div class="stat"><div class="lbl">PONTOS (prévia)</div><div class="val" id="score">0</div></div>
+      <div class="stat"><div class="lbl">PRÉVIA</div><div class="val" id="score">0</div></div>
       <div class="stat"><div class="lbl">TEMPO</div><div class="val" id="timer">3:00</div></div>
     </div>
     <div id="current">&nbsp;</div>
@@ -145,9 +193,13 @@
   <!-- RESULTADO DE PARTIDA -->
   <div id="tela-resultado" class="hidden">
     <div class="rodada-tag" id="res-rodada"></div>
-    <div class="venc" id="venc"></div>
-    <div class="card" id="sets-box"></div>
+
+    <!-- destaque do MEU resultado -->
+    <div class="meu-resultado" id="meu-res"></div>
+
+    <div class="card hidden" id="sets-box"></div>
     <div class="card" id="placar"></div>
+    <div class="card" id="rank-box"></div>
     <button onclick="iniciar()">Próxima partida</button>
     <button class="sec" onclick="voltarLobby()">Encerrar e voltar ao lobby</button>
   </div>
@@ -155,20 +207,86 @@
   <!-- FIM DE CAMPEONATO -->
   <div id="tela-fim" class="hidden">
     <div class="venc" id="fim-venc"></div>
+    <div class="meu-resultado" id="fim-meu"></div>
     <div class="card" id="fim-sets"></div>
+    <div class="card" id="fim-rank"></div>
     <div class="card" id="fim-placar"></div>
-    <button onclick="iniciar()">Novo campeonato (mesma config)</button>
+    <button onclick="iniciar()">Novo campeonato</button>
     <button class="sec" onclick="voltarLobby()">Voltar ao lobby</button>
+  </div>
+
+  <!-- CONFIGURAÇÕES -->
+  <div id="tela-config" class="hidden">
+    <div class="card">
+      <h3>Som</h3>
+      <div class="switch">
+        <label>Música durante a partida</label>
+        <input type="checkbox" id="sw-musica" checked onchange="aplicarAudio()">
+      </div>
+      <div class="cfg-linha">
+        <label>Trilha</label>
+        <select id="sel-trilha" onchange="trocarTrilha()"></select>
+      </div>
+      <div class="cfg-linha">
+        <label>Volume</label>
+        <input type="range" id="vol-musica" min="0" max="100" value="35" oninput="aplicarAudio()">
+      </div>
+      <button class="sec mini" onclick="testarMusica()">▶ Ouvir trilha</button>
+
+      <h3 class="mt">Sua própria música</h3>
+      <input type="file" id="arq-mp3" accept="audio/*" onchange="carregarMusicaLocal()">
+      <div class="aviso left" id="mp3-nome">Nenhum arquivo escolhido. Fica só no seu aparelho.</div>
+
+      <h3 class="mt">Efeitos sonoros</h3>
+      <div class="switch">
+        <label>Sons ao jogar</label>
+        <input type="checkbox" id="sw-sfx" checked onchange="aplicarAudio()">
+      </div>
+      <div class="cfg-linha">
+        <label>Volume</label>
+        <input type="range" id="vol-sfx" min="0" max="100" value="50" oninput="aplicarAudio()">
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Sensibilidade do toque</h3>
+      <div class="cfg-linha">
+        <label>Precisão</label>
+        <input type="range" id="vol-tol" min="35" max="95" value="62" oninput="aplicarTolerancia()">
+      </div>
+      <div class="aviso left" id="tol-desc">
+        Menor = precisa acertar mais o centro da letra (evita pegar diagonais sem querer).
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Palavras aceitas</h3>
+      <div class="aviso left" style="margin-top:0;margin-bottom:10px">
+        Adicione palavras que faltam no dicionário. Valem pra todos na sala,
+        durante esta sessão.
+      </div>
+      <textarea id="txt-palavras" placeholder="Uma por linha, ou separadas por vírgula&#10;ex.: xablau, trecoteco"></textarea>
+      <div class="row2">
+        <button class="mini" onclick="enviarPalavras('add')">Adicionar</button>
+        <button class="mini sec" onclick="enviarPalavras('remover')">Remover</button>
+      </div>
+      <div class="aviso left" id="pal-msg"></div>
+      <div class="chips" id="pal-lista" style="margin-top:10px"></div>
+    </div>
+
+    <button class="sec" onclick="fecharConfig()">Voltar</button>
   </div>
 </div>
 
+<script src="/static/audio.js"></script>
 <script>
-let NOME=null, faseAtual=null, rodadaAtual=-1, cfgModo="individual";
+let NOME=null, faseAtual=null, rodadaAtual=-1;
 let letters=[], path=[], cells=[], down=false, N=4;
-let pollTimer=null;
+let pollTimer=null, telaAnterior="login", ultimoEstado=null;
+let difSel="medio", avisou30=false;
 
 function $(id){return document.getElementById(id);}
-function show(t){["login","lobby","jogo","resultado","fim"].forEach(x=>
+function show(t){["login","lobby","jogo","resultado","fim","config"].forEach(x=>
   $("tela-"+x).classList.toggle("hidden", x!==t));}
 function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 
@@ -181,71 +299,110 @@ async function api(url,body){
 
 async function entrar(){
   const n=$("nome").value.trim(); if(!n)return;
+  Audio2.destravar();
   const r=await api("/api/entrar",{nome:n});
   if(r&&r.ok){ NOME=r.nome; iniciarPoll(); }
 }
+
+// ---------- configurações de jogo ----------
 async function salvarConfig(){
   await api("/api/config",{
     tamanho:+$("cfg-tamanho").value,
     duracao:+$("cfg-duracao").value,
     modo:$("cfg-modo").value,
     n_partidas:+$("cfg-partidas").value,
+    dificuldade:difSel,
   });
   atualizarUIConfig();
 }
+function escolherDif(d){
+  difSel=d;
+  document.querySelectorAll(".dif-op").forEach(el=>
+    el.classList.toggle("sel", el.dataset.d===d));
+  const txt={
+    facil:"Fácil: grades com muitas palavras pra achar.",
+    medio:"Médio: equilíbrio entre quantidade e desafio.",
+    dificil:"Difícil: menos palavras, e as boas são mais longas."
+  };
+  $("dif-desc").textContent=txt[d];
+  salvarConfig();
+}
 function atualizarUIConfig(){
-  const modo=$("cfg-modo").value;
-  $("cfg-time-box").classList.toggle("hidden", modo!=="times");
-  const np=+$("cfg-partidas").value;
-  $("lbl-inicio").textContent = np>1 ? "campeonato" : "partida";
+  $("cfg-time-box").classList.toggle("hidden", $("cfg-modo").value!=="times");
+  $("lbl-inicio").textContent = (+$("cfg-partidas").value)>1 ? "campeonato" : "partida";
 }
-async function salvarTime(){
-  await api("/api/time",{nome:NOME,time:$("cfg-time").value});
-}
-async function iniciar(){ await api("/api/iniciar",{}); }
+async function salvarTime(){ await api("/api/time",{nome:NOME,time:$("cfg-time").value}); }
+async function iniciar(){ Audio2.destravar(); await api("/api/iniciar",{}); }
 async function voltarLobby(){ await api("/api/nova",{}); }
 
+// ---------- polling ----------
 function iniciarPoll(){
   if(pollTimer)clearInterval(pollTimer);
   poll(); pollTimer=setInterval(poll,1500);
 }
 async function poll(){
   const st=await api("/api/estado?nome="+encodeURIComponent(NOME));
-  if(!st)return; aplicarEstado(st);
+  if(!st)return; ultimoEstado=st; aplicarEstado(st);
 }
 
 function aplicarEstado(st){
-  cfgModo = st.config.modo;
+  // sincroniza os controles com a config da sala (outro jogador pode ter mudado)
+  if(st.fase==="lobby"){
+    $("cfg-tamanho").value=st.config.tamanho;
+    $("cfg-duracao").value=st.config.duracao;
+    $("cfg-modo").value=st.config.modo;
+    $("cfg-partidas").value=st.config.n_partidas;
+    if(st.config.dificuldade!==difSel){
+      difSel=st.config.dificuldade;
+      document.querySelectorAll(".dif-op").forEach(el=>
+        el.classList.toggle("sel", el.dataset.d===difSel));
+    }
+    atualizarUIConfig();
+  }
+
   if(st.fase!==faseAtual || st.rodada!==rodadaAtual){
+    const eraJogando = faseAtual==="jogando";
     faseAtual=st.fase; rodadaAtual=st.rodada;
-    if(st.fase==="lobby") show("lobby");
-    else if(st.fase==="jogando"){ montarGrade(st.grade); mostrarRodada(st); show("jogo"); }
-    else if(st.fase==="resultado"){ mostrarResultado(st); show("resultado"); }
-    else if(st.fase==="fim_campeonato"){ mostrarFim(st); show("fim"); }
+    if($("tela-config").classList.contains("hidden")){
+      if(st.fase==="lobby"){ Audio2.pararMusica(); show("lobby"); }
+      else if(st.fase==="jogando"){
+        montarGrade(st.grade); mostrarRodada(st); show("jogo");
+        avisou30=false; Audio2.sfx("inicio"); Audio2.tocarMusica();
+      }
+      else if(st.fase==="resultado"){
+        Audio2.pararMusica(); if(eraJogando)Audio2.sfx("fim");
+        mostrarResultado(st); show("resultado");
+      }
+      else if(st.fase==="fim_campeonato"){
+        Audio2.pararMusica(); if(eraJogando)Audio2.sfx("vitoria");
+        mostrarFim(st); show("fim");
+      }
+    }
   }
   if(st.fase==="lobby"){
     $("qtd").textContent=st.jogadores.length;
     $("lista-j").innerHTML=st.jogadores.map(j=>{
-      const tt = j.time ? ` <span class="time-badge">${esc(j.time)}</span>` : "";
+      const tt=j.time?` <span class="time-badge">${esc(j.time)}</span>`:"";
       return `<span class="badge">${esc(j.nome)}${tt}</span>`;
     }).join("");
   }
   if(st.fase==="jogando"){
     const m=st.restante/60|0, s=String(st.restante%60).padStart(2,"0");
     $("timer").textContent=m+":"+s;
-    $("timer").style.color = st.restante<=30 ? "#A32D2D" : "";
+    $("timer").style.color = st.restante<=30 ? "var(--vermelho)" : "";
+    if(st.restante<=30 && st.restante>0 && !avisou30){ avisou30=true; Audio2.sfx("tique"); }
     sincronizarPalavras(st.minhas_palavras);
   }
 }
 
 function mostrarRodada(st){
   const np=st.config.n_partidas;
-  const info = st.grade_info && st.grade_info.palavras
-    ? ` · ${st.grade_info.palavras} palavras possíveis` : "";
-  $("rodada-tag").textContent = (np>1 ? `Partida ${st.rodada} de ${np}` : "Partida") + info;
+  const dif={facil:"fácil",medio:"médio",dificil:"difícil"}[st.config.dificuldade]||"";
+  const info=st.grade_info&&st.grade_info.palavras?` · ${st.grade_info.palavras} palavras possíveis`:"";
+  $("rodada-tag").textContent=(np>1?`Partida ${st.rodada} de ${np}`:`Nível ${dif}`)+info;
 }
 
-// ---- tabuleiro NxN ----
+// ---------- tabuleiro ----------
 function montarGrade(grade){
   N=Math.round(Math.sqrt(grade.length));
   letters=grade.slice(); path=[]; cells=[];
@@ -253,8 +410,7 @@ function montarGrade(grade){
   $("msg").textContent="Arraste pra conectar letras";
   const b=$("board");
   b.style.gridTemplateColumns=`repeat(${N},1fr)`;
-  // fonte proporcional ao tamanho
-  const fs = Math.max(13, Math.round(120/N));
+  const fs=Math.max(13,Math.round(120/N));
   b.innerHTML="";
   letters.forEach((L,i)=>{
     const d=document.createElement("div");
@@ -273,109 +429,280 @@ function hl(){
 function addCell(i){
   if(path.includes(i))return;
   if(path.length&&!neigh(path[path.length-1],i))return;
-  path.push(i); hl();
+  path.push(i); hl(); Audio2.sfx("select");
 }
-function idxAt(x,y){const el=document.elementFromPoint(x,y);
-  return (el&&el.classList.contains("cell"))?+el.dataset.i:-1;}
+
+/* Detecção por proximidade do CENTRO da célula.
+   Antes bastava tocar em qualquer ponto da célula, então passar de raspão
+   pelo canto já selecionava a letra — o problema das diagonais. */
+let TOLERANCIA=0.62;
+function idxAt(x,y){
+  const el=document.elementFromPoint(x,y);
+  if(!el||!el.classList.contains("cell"))return -1;
+  const r=el.getBoundingClientRect();
+  const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  const dx=x-cx, dy=y-cy;
+  const raio=Math.min(r.width,r.height)/2*TOLERANCIA;
+  if(dx*dx+dy*dy>raio*raio)return -1;
+  return +el.dataset.i;
+}
+function aplicarTolerancia(){
+  TOLERANCIA=(+$("vol-tol").value)/100;
+  try{localStorage.setItem("bg_tol",TOLERANCIA);}catch(e){}
+}
+
+let ultimoX=null, ultimoY=null;
+document.addEventListener("pointerdown",e=>{
+  if(faseAtual!=="jogando")return;
+  const el=e.target.closest(".cell"); if(!el)return;
+  e.preventDefault(); down=true; path=[];
+  const i=idxAt(e.clientX,e.clientY);
+  addCell(i>=0?i:+el.dataset.i);
+  ultimoX=e.clientX; ultimoY=e.clientY;
+});
+document.addEventListener("pointermove",e=>{
+  if(!down)return; e.preventDefault();
+  // interpola: em arrasto rápido o navegador pula pixels e perderíamos letras
+  if(ultimoX!==null){
+    const dx=e.clientX-ultimoX, dy=e.clientY-ultimoY;
+    const passos=Math.min(12,Math.max(1,Math.round(Math.hypot(dx,dy)/8)));
+    for(let s=1;s<=passos;s++){
+      const i=idxAt(ultimoX+dx*s/passos, ultimoY+dy*s/passos);
+      if(i>=0)addCell(i);
+    }
+  }else{
+    const i=idxAt(e.clientX,e.clientY); if(i>=0)addCell(i);
+  }
+  ultimoX=e.clientX; ultimoY=e.clientY;
+});
+document.addEventListener("pointerup",()=>{
+  if(down){down=false; ultimoX=ultimoY=null; finalizar();}
+});
 
 async function finalizar(){
   if(path.length>=3){
     const r=await api("/api/submeter",{nome:NOME,caminho:path});
     if(r&&r.ok){
-      if(r.repetida) msg("Ja tinha essa","#b0a48c");
-      else msg("✓ "+r.palavra,"#3B6D11");
-    } else if(r){ msg("Nao vale","#a05a3c"); }
+      if(r.repetida){ msg("Já tinha essa","#b0a48c"); Audio2.sfx("repetida"); }
+      else { msg("✓ "+r.palavra,"var(--verde)"); Audio2.sfx("valida"); }
+    }else if(r){ msg("Não vale","#a05a3c"); Audio2.sfx("invalida"); }
   }
   path=[]; hl();
 }
 function msg(t,c){$("msg").textContent=t; $("msg").style.color=c||"#7a6b55";}
-
-// prévia local (o placar real, com dobro/exclusiva, sai no fim)
 function sincronizarPalavras(lista){
   $("found").innerHTML=lista.map(w=>`<span class="chip">${esc(w)}</span>`).join("");
-  let s=0; for(const w of lista) s += w.length;  // prévia = soma base
+  let s=0; for(const w of lista) s+=w.length;
   $("score").textContent=s;
 }
 
-document.addEventListener("pointerdown",e=>{
-  if(faseAtual!=="jogando")return;
-  const el=e.target.closest(".cell"); if(!el)return;
-  e.preventDefault(); down=true; path=[]; addCell(+el.dataset.i);
-});
-document.addEventListener("pointermove",e=>{
-  if(!down)return; e.preventDefault();
-  const i=idxAt(e.clientX,e.clientY); if(i>=0)addCell(i);
-});
-document.addEventListener("pointerup",()=>{ if(down){down=false; finalizar();} });
-
-// ---- resultado de partida ----
+// ---------- resultado ----------
 function ordenarIndividual(placar){
   return Object.entries(placar).map(([nome,d])=>({nome,...d}))
     .sort((a,b)=>b.pontos-a.pontos);
 }
+function medalha(pos){return pos===0?"🥇":pos===1?"🥈":pos===2?"🥉":`${pos+1}º`;}
+
+function blocoMeuResultado(st){
+  const eu=st.placar[NOME];
+  if(!eu) return `<div class="rot">Sua pontuação</div><div class="pts-grande">—</div>
+                  <div class="detalhe">Você não pontuou nesta partida.</div>`;
+  const arr=ordenarIndividual(st.placar);
+  const pos=arr.findIndex(p=>p.nome===NOME);
+  const ptsExc=eu.exclusivas.reduce((s,w)=>s+w.length*2,0);
+  const ptsRep=eu.repetidas.reduce((s,w)=>s+w.length,0);
+  const total=eu.exclusivas.length+eu.repetidas.length;
+  return `
+    <div class="rot">Sua pontuação</div>
+    <div class="pts-grande">${eu.pontos}</div>
+    <div class="pos-medalha">${medalha(pos)} de ${arr.length} jogadores</div>
+    <div class="quebra">
+      <div><div class="n">${total}</div><div class="l">palavras</div></div>
+      <div><div class="n">${eu.exclusivas.length}</div><div class="l">exclusivas (${ptsExc}pts)</div></div>
+      <div><div class="n">${eu.repetidas.length}</div><div class="l">repetidas (${ptsRep}pts)</div></div>
+    </div>`;
+}
+
 function blocoPlacarIndividual(placar, times){
-  const arr=ordenarIndividual(placar);
-  return arr.map(p=>{
-    const tb = times && p.nome in times && times[p.nome] ? ` <span class="time-badge">${esc(times[p.nome])}</span>`:"";
+  return ordenarIndividual(placar).map((p,i)=>{
+    const tb=times&&times[p.nome]?` <span class="time-badge">${esc(times[p.nome])}</span>`:"";
     const exc=p.exclusivas.map(w=>`<span class="chip exc">${esc(w)} ·${w.length*2}</span>`).join("");
     const rep=p.repetidas.map(w=>`<span class="chip rep">${esc(w)} ·${w.length}</span>`).join("");
-    return `<div class="plinha"><span class="nome">${esc(p.nome)}${tb}</span><span class="pts">${p.pontos} pts</span></div>
-      <div class="chips" style="margin:6px 0 4px">${exc}${rep}</div>`;
+    const eu=p.nome===NOME?" eu":"";
+    return `<div class="plinha${eu}"><span class="nome">${medalha(i)} ${esc(p.nome)}${tb}</span>
+      <span class="pts">${p.pontos} pts</span></div>
+      <div class="chips" style="margin:6px 0 10px">${exc}${rep}</div>`;
   }).join("");
 }
-function blocoSets(vitorias, modo){
-  const arr=Object.entries(vitorias).sort((a,b)=>b[1]-a[1]);
-  if(!arr.length) return "";
-  return `<h3 style="margin-top:0">Vitórias</h3><div class="sets">`+
-    arr.map(([k,v])=>`<div class="set-item"><div class="n">${v}</div><div class="l">${esc(k)}</div></div>`).join("")+
-    `</div>`;
+
+function blocoRanking(st){
+  const r=st.ranking||{};
+  const arr=Object.entries(r).map(([nome,d])=>({nome,...d}))
+    .sort((a,b)=>b.melhor-a.melhor);
+  if(!arr.length)return "";
+  return `<h3>Recordes da sessão</h3>`+arr.map((p,i)=>`
+    <div class="rank-linha">
+      <div class="rank-pos">${medalha(i)}</div>
+      <div class="rank-nome">${esc(p.nome)}${p.nome===NOME?" (você)":""}</div>
+      <div class="rank-vals"><b>${p.melhor}</b> recorde<br>${p.total} total · ${p.partidas} jogo(s)</div>
+    </div>`).join("");
 }
+
 function timesDosJogadores(st){
   const m={}; (st.jogadores||[]).forEach(j=>m[j.nome]=j.time); return m;
 }
 
 function mostrarResultado(st){
   const np=st.config.n_partidas;
-  $("res-rodada").textContent = np>1 ? `Fim da partida ${st.rodada} de ${np}` : "";
-  let venc;
-  if(st.config.modo==="times"){
-    const arr=Object.entries(st.placar_times).sort((a,b)=>b[1]-a[1]);
-    venc = arr.length ? `🏆 Time ${esc(arr[0][0])} venceu a partida` : "Sem pontos";
-  } else {
-    const arr=ordenarIndividual(st.placar);
-    venc = (arr.length&&arr[0].pontos>0) ? `🏆 ${esc(arr[0].nome)} venceu a partida` : "Sem pontos";
+  $("res-rodada").textContent = np>1?`Fim da partida ${st.rodada} de ${np}`:"Fim da partida";
+  $("meu-res").innerHTML=blocoMeuResultado(st);
+
+  const temSets=np>1;
+  $("sets-box").classList.toggle("hidden",!temSets);
+  if(temSets){
+    const arr=Object.entries(st.vitorias).sort((a,b)=>b[1]-a[1]);
+    $("sets-box").innerHTML=`<h3>Vitórias no campeonato</h3><div class="sets">`+
+      arr.map(([k,v])=>`<div class="set-item"><div class="n">${v}</div><div class="l">${esc(k)}</div></div>`).join("")+
+      `</div>`;
   }
-  $("venc").textContent=venc;
-  $("sets-box").innerHTML = np>1 ? blocoSets(st.vitorias, st.config.modo) : "";
-  $("sets-box").classList.toggle("hidden", np<=1);
+
   let html="";
   if(st.config.modo==="times"){
     const arrT=Object.entries(st.placar_times).sort((a,b)=>b[1]-a[1]);
-    html += `<h3 style="margin-top:0">Placar dos times</h3>`+
-      arrT.map(([t,p])=>`<div class="plinha"><span class="nome">Time ${esc(t)}</span><span class="pts">${p} pts</span></div>`).join("");
-    html += `<h3>Por jogador</h3>`;
+    html+=`<h3>Placar dos times</h3>`+arrT.map(([t,p],i)=>
+      `<div class="plinha"><span class="nome">${medalha(i)} Time ${esc(t)}</span><span class="pts">${p} pts</span></div>`).join("");
+    html+=`<h3 class="mt">Por jogador</h3>`;
+  } else {
+    html+=`<h3>Placar da partida</h3>`;
   }
-  html += blocoPlacarIndividual(st.placar, timesDosJogadores(st));
+  html+=blocoPlacarIndividual(st.placar,timesDosJogadores(st));
   $("placar").innerHTML=html;
+
+  const rk=blocoRanking(st);
+  $("rank-box").innerHTML=rk;
+  $("rank-box").classList.toggle("hidden",!rk);
 }
 
 function mostrarFim(st){
   const arr=Object.entries(st.vitorias).sort((a,b)=>b[1]-a[1]);
   if(arr.length){
-    const campeao=arr[0][0];
-    const rotulo = st.config.modo==="times" ? `Time ${esc(campeao)}` : esc(campeao);
-    $("fim-venc").textContent=`🏆 Campeão: ${rotulo}`;
-  } else $("fim-venc").textContent="Campeonato encerrado";
-  $("fim-sets").innerHTML = `<h3 style="margin-top:0">Placar final (vitórias)</h3>`+
-    arr.map(([k,v])=>`<div class="plinha"><span class="nome">${esc(k)}</span><span class="pts">${v} vitória(s)</span></div>`).join("");
-  // histórico
-  let h="<h3 style='margin-top:0'>Partidas</h3>";
+    const rot=st.config.modo==="times"?`Time ${esc(arr[0][0])}`:esc(arr[0][0]);
+    $("fim-venc").textContent=`🏆 Campeão: ${rot}`;
+  }else $("fim-venc").textContent="Campeonato encerrado";
+
+  $("fim-meu").innerHTML=blocoMeuResultado(st);
+
+  $("fim-sets").innerHTML=`<h3>Placar final (vitórias)</h3>`+
+    arr.map(([k,v],i)=>`<div class="plinha"><span class="nome">${medalha(i)} ${esc(k)}</span>
+      <span class="pts">${v} vitória(s)</span></div>`).join("");
+
+  const rk=blocoRanking(st);
+  $("fim-rank").innerHTML=rk;
+  $("fim-rank").classList.toggle("hidden",!rk);
+
+  let h="<h3>Partidas</h3>";
   (st.historico||[]).forEach(x=>{
-    const r = st.config.modo==="times" ? `Time ${esc(x.vencedor)}` : esc(x.vencedor);
+    const r=st.config.modo==="times"?`Time ${esc(x.vencedor)}`:esc(x.vencedor);
     h+=`<div class="plinha"><span class="nome">Partida ${x.rodada}</span><span class="pts">${r}</span></div>`;
   });
   $("fim-placar").innerHTML=h;
 }
+
+// ---------- tela de configurações ----------
+function abrirConfig(){
+  if($("tela-config").classList.contains("hidden")){
+    telaAnterior = faseAtual==="jogando"?"jogo":
+                   faseAtual==="resultado"?"resultado":
+                   faseAtual==="fim_campeonato"?"fim":
+                   (NOME?"lobby":"login");
+    carregarPalavras();
+    show("config");
+  }
+}
+function fecharConfig(){ show(telaAnterior); }
+
+function aplicarAudio(){
+  Audio2.setMusica($("sw-musica").checked);
+  Audio2.setSfx($("sw-sfx").checked);
+  Audio2.setVolMusica((+$("vol-musica").value)/100);
+  Audio2.setVolSfx((+$("vol-sfx").value)/100);
+  try{
+    localStorage.setItem("bg_audio",JSON.stringify({
+      m:$("sw-musica").checked,s:$("sw-sfx").checked,
+      vm:$("vol-musica").value,vs:$("vol-sfx").value,
+      t:$("sel-trilha").value
+    }));
+  }catch(e){}
+  if(faseAtual==="jogando"&&$("sw-musica").checked&&!Audio2.estaTocando())Audio2.tocarMusica();
+}
+function trocarTrilha(){
+  Audio2.usarTrilhaInterna(+$("sel-trilha").value);
+  $("mp3-nome").textContent="Usando trilha do jogo.";
+  aplicarAudio();
+  if(faseAtual==="jogando")Audio2.tocarMusica(+$("sel-trilha").value);
+}
+function testarMusica(){
+  Audio2.destravar();
+  if(Audio2.estaTocando()){ Audio2.pararMusica(); return; }
+  Audio2.tocarMusica(+$("sel-trilha").value);
+  setTimeout(()=>{ if(faseAtual!=="jogando")Audio2.pararMusica(); },8000);
+}
+function carregarMusicaLocal(){
+  const f=$("arq-mp3").files[0]; if(!f)return;
+  const nome=Audio2.carregarMp3(f);
+  $("mp3-nome").textContent=`Usando: ${nome} (só no seu aparelho)`;
+}
+
+// ---------- palavras customizadas ----------
+async function carregarPalavras(){
+  const r=await api("/api/palavras");
+  if(r&&r.palavras){
+    $("pal-lista").innerHTML=r.palavras.length
+      ? r.palavras.map(w=>`<span class="chip">${esc(w)}</span>`).join("")
+      : `<span class="aviso">Nenhuma palavra extra ainda.</span>`;
+  }
+}
+async function enviarPalavras(acao){
+  const txt=$("txt-palavras").value.trim();
+  if(!txt){ $("pal-msg").textContent="Escreva ao menos uma palavra."; return; }
+  const r=await api("/api/palavras",{palavras:txt,acao});
+  if(!r){ $("pal-msg").textContent="Falhou. Tente de novo."; return; }
+  const fez=r.aplicadas.length, ign=r.ignoradas.length;
+  let m = acao==="add"
+    ? `${fez} adicionada(s).`
+    : `${fez} removida(s).`;
+  if(ign) m += acao==="add"
+    ? ` ${ign} já existia(m) no dicionário.`
+    : ` ${ign} não era(m) palavra(s) desta sessão.`;
+  $("pal-msg").textContent=m;
+  $("txt-palavras").value="";
+  carregarPalavras();
+}
+
+// ---------- restaurar preferências locais ----------
+(function restaurar(){
+  try{
+    const t=localStorage.getItem("bg_tol");
+    if(t){ TOLERANCIA=+t; $("vol-tol").value=Math.round(TOLERANCIA*100); }
+    const a=JSON.parse(localStorage.getItem("bg_audio")||"null");
+    if(a){
+      $("sw-musica").checked=a.m; $("sw-sfx").checked=a.s;
+      $("vol-musica").value=a.vm; $("vol-sfx").value=a.vs;
+    }
+  }catch(e){}
+  const sel=$("sel-trilha");
+  Audio2.nomesTrilhas().forEach((n,i)=>{
+    const o=document.createElement("option"); o.value=i; o.textContent=n; sel.appendChild(o);
+  });
+  try{
+    const a=JSON.parse(localStorage.getItem("bg_audio")||"null");
+    if(a&&a.t!=null){ sel.value=a.t; Audio2.usarTrilhaInterna(+a.t); }
+  }catch(e){}
+  Audio2.setMusica($("sw-musica").checked);
+  Audio2.setSfx($("sw-sfx").checked);
+  Audio2.setVolMusica((+$("vol-musica").value)/100);
+  Audio2.setVolSfx((+$("vol-sfx").value)/100);
+})();
 </script>
 </body>
 </html>

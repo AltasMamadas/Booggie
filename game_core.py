@@ -18,6 +18,39 @@ with open(os.path.join(BASE, "words.json"), encoding="utf-8") as f:
 # trie construída uma vez na importação (usada pra avaliar grades)
 _TRIE = _solver.construir_trie(WORDS)
 
+# palavras adicionadas em tempo de execução pelos jogadores (só em memória)
+EXTRAS = set()
+
+
+def adicionar_palavra(p):
+    """Inclui no dicionário de validação E na trie (senão o solver não a vê)."""
+    p = "".join(c for c in p.upper() if c.isalpha())
+    if len(p) < 3:
+        return False
+    if p in WORDS:
+        return False
+    WORDS.add(p)
+    EXTRAS.add(p)
+    no = _TRIE
+    for ch in p:
+        no = no.setdefault(ch, {})
+    no["$"] = True
+    return True
+
+
+def remover_palavra(p):
+    """Só remove palavras que foram adicionadas nesta sessão."""
+    global _TRIE
+    p = "".join(c for c in p.upper() if c.isalpha())
+    if p in EXTRAS:
+        EXTRAS.discard(p)
+        WORDS.discard(p)
+        # reconstrói a trie pra o solver não continuar contando a palavra
+        # (custa ~35ms; remoção é rara, então compensa a simplicidade)
+        _TRIE = _solver.construir_trie(WORDS)
+        return True
+    return False
+
 POOL = ("AAAAAAAAAAAAAABBCCCCDDDDEEEEEEEEEEEEEEFFGGGHIIIIIIIIII"
         "JLLLLLMMMMNNNNNNOOOOOOOOOOOOPPPPQRRRRRRRRRSSSSSSSS"
         "TTTTTTTUUUUUUVVXZ")
@@ -36,23 +69,45 @@ def _gerar_grade_crua(n=4):
     return letras
 
 
-def gerar_grade(n=4, candidatas=30):
+def _nota_dificuldade(qtd, maior, dificuldade, alvo=0):
     """
-    Gera 'candidatas' grades e retorna a que tem mais palavras encontráveis.
-    Rápido: mesmo 30 candidatas num 10x10 leva ~150ms.
+    Nota de adequação da grade ao nível (maior = melhor).
+    facil  : quanto mais palavras, melhor.
+    medio  : mais perto do alvo (mediana das candidatas), melhor.
+    dificil: poucas palavras, mas premiando palavras longas — senão
+             a grade vira um deserto sem nada pra achar.
+    """
+    if dificuldade == "facil":
+        return qtd
+    if dificuldade == "dificil":
+        return (maior * 12) - qtd
+    return -abs(qtd - alvo)
+
+
+def gerar_grade(n=4, candidatas=30, dificuldade="medio"):
+    """
+    Gera 'candidatas' grades e escolhe a que melhor atende à dificuldade.
     Retorna (grade, qtd_palavras, maior_palavra).
     """
-    melhor = None
-    melhor_qtd = -1
-    melhor_maior = 0
+    if dificuldade not in ("facil", "medio", "dificil"):
+        dificuldade = "medio"
+
+    avaliadas = []
     for _ in range(max(1, candidatas)):
         g = _gerar_grade_crua(n)
         qtd, maior = _solver.contar_palavras(g, _TRIE, n)
-        if qtd > melhor_qtd:
-            melhor_qtd = qtd
-            melhor = g
-            melhor_maior = maior
-    return melhor, melhor_qtd, melhor_maior
+        avaliadas.append((g, qtd, maior))
+
+    alvo = 0
+    if dificuldade == "medio":
+        qtds = sorted(x[1] for x in avaliadas)
+        alvo = qtds[len(qtds) // 2]
+
+    melhor = max(
+        avaliadas,
+        key=lambda t: _nota_dificuldade(t[1], t[2], dificuldade, alvo),
+    )
+    return melhor[0], melhor[1], melhor[2]
 
 
 def _vizinhos(a, b, n):

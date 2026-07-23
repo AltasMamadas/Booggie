@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Boggle Local</title>
+<style>
+  :root{--madeira:#7a5c3e;--creme:#fdfaf3;--borda:#cbb894;--fundo:#f4ecdd;--texto:#3a2f22;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--fundo);color:var(--texto);display:flex;justify-content:center;min-height:100vh;padding:16px;}
+  .wrap{width:100%;max-width:460px;}
+  .logo{font-size:26px;font-weight:700;color:var(--madeira);letter-spacing:1px;text-align:center;margin-bottom:2px;}
+  .sub{text-align:center;color:#9a8a72;font-size:13px;margin-bottom:18px;}
+  .hidden{display:none!important;}
+  input,select{width:100%;padding:13px;font-size:16px;border:1px solid var(--borda);border-radius:10px;
+    background:var(--creme);margin-bottom:10px;color:var(--texto);}
+  button{width:100%;padding:14px;font-size:16px;font-weight:600;background:var(--madeira);
+    color:#fff;border:none;border-radius:10px;cursor:pointer;margin-bottom:8px;}
+  button:active{background:#5c4530;}
+  button.sec{background:#e8dcc4;color:var(--madeira);}
+  .card{background:var(--creme);border:1px solid var(--borda);border-radius:12px;padding:16px;margin-bottom:14px;}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .stat .lbl{font-size:11px;color:#9a8a72;}.stat .val{font-size:22px;font-weight:700;}
+  .stats{display:flex;gap:20px;}
+  .rodada-tag{font-size:12px;color:#9a8a72;text-align:center;margin-bottom:8px;}
+  #current{height:38px;display:flex;align-items:center;justify-content:center;font-size:22px;
+    font-weight:700;letter-spacing:3px;color:var(--madeira);}
+  #board{background:#e8dcc4;border-radius:14px;padding:8px;display:grid;gap:6px;
+    touch-action:none;user-select:none;-webkit-user-select:none;margin-bottom:12px;}
+  .cell{aspect-ratio:1;background:var(--creme);border:1px solid var(--borda);border-radius:8px;
+    display:flex;align-items:center;justify-content:center;font-weight:700;
+    box-shadow:0 2px 0 var(--borda);}
+  .cell.on{background:var(--madeira);color:#fff;border-color:var(--madeira);}
+  #msg{height:22px;text-align:center;font-size:14px;color:#7a6b55;margin-bottom:8px;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{background:#f0e7d4;color:var(--madeira);border:1px solid var(--borda);border-radius:7px;
+    padding:4px 9px;font-size:13px;font-weight:600;}
+  .chip.exc{background:var(--madeira);color:#fff;border-color:var(--madeira);}
+  .chip.rep{opacity:.7;}
+  .plinha{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #eee3cf;}
+  .plinha .nome{font-weight:600;}.plinha .pts{font-weight:700;color:var(--madeira);}
+  .plinha .time-badge{font-size:11px;background:#e8dcc4;color:var(--madeira);padding:2px 7px;border-radius:10px;margin-left:6px;}
+  .lista-j{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .badge{background:#e8dcc4;color:var(--madeira);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;}
+  h3{margin:14px 0 8px;font-size:13px;color:#9a8a72;text-transform:uppercase;letter-spacing:.5px;}
+  .venc{font-size:17px;text-align:center;color:var(--madeira);font-weight:700;margin-bottom:12px;}
+  .cfg-linha{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .cfg-linha label{font-size:14px;min-width:95px;color:var(--texto);}
+  .cfg-linha select,.cfg-linha input{margin-bottom:0;}
+  .row2{display:flex;gap:8px;}.row2>*{flex:1;}
+  .sets{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0;}
+  .set-item{background:var(--creme);border:1px solid var(--borda);border-radius:10px;padding:8px 14px;text-align:center;}
+  .set-item .n{font-size:22px;font-weight:700;color:var(--madeira);}
+  .set-item .l{font-size:12px;color:#9a8a72;}
+  .aviso{font-size:12px;color:#9a8a72;text-align:center;margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">BOGGLE</div>
+  <div class="sub">jogo local · mesma grade pra todos</div>
+
+  <!-- LOGIN -->
+  <div id="tela-login">
+    <div class="card">
+      <input id="nome" placeholder="Seu nome" maxlength="16" autocomplete="off">
+      <button onclick="entrar()">Entrar na sala</button>
+    </div>
+  </div>
+
+  <!-- LOBBY -->
+  <div id="tela-lobby" class="hidden">
+    <div class="card">
+      <b>Na sala (<span id="qtd">0</span>)</b>
+      <div class="lista-j" id="lista-j"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Configuração</h3>
+      <div class="cfg-linha">
+        <label>Tabuleiro</label>
+        <select id="cfg-tamanho" onchange="salvarConfig()">
+          <option value="3">3 × 3</option>
+          <option value="4" selected>4 × 4</option>
+          <option value="5">5 × 5</option>
+          <option value="6">6 × 6</option>
+          <option value="7">7 × 7</option>
+          <option value="8">8 × 8</option>
+          <option value="9">9 × 9</option>
+          <option value="10">10 × 10</option>
+        </select>
+      </div>
+      <div class="cfg-linha">
+        <label>Tempo</label>
+        <select id="cfg-duracao" onchange="salvarConfig()">
+          <option value="60">1 min</option>
+          <option value="120">2 min</option>
+          <option value="180" selected>3 min</option>
+          <option value="300">5 min</option>
+        </select>
+      </div>
+      <div class="cfg-linha">
+        <label>Modo</label>
+        <select id="cfg-modo" onchange="salvarConfig()">
+          <option value="individual" selected>Individual</option>
+          <option value="times">Times</option>
+        </select>
+      </div>
+      <div class="cfg-linha">
+        <label>Partidas</label>
+        <select id="cfg-partidas" onchange="salvarConfig()">
+          <option value="1" selected>1 (partida única)</option>
+          <option value="3">3 (melhor de 3)</option>
+          <option value="5">5 (melhor de 5)</option>
+          <option value="7">7</option>
+        </select>
+      </div>
+      <div id="cfg-time-box" class="hidden">
+        <h3>Seu time</h3>
+        <div class="row2">
+          <input id="cfg-time" placeholder="Nome do time" maxlength="16" oninput="salvarTime()">
+        </div>
+        <div class="aviso">Jogadores com o mesmo nome de time jogam juntos.</div>
+      </div>
+    </div>
+
+    <button onclick="iniciar()">Iniciar <span id="lbl-inicio">partida</span></button>
+    <div class="aviso">Qualquer um pode configurar e iniciar.</div>
+  </div>
+
+  <!-- JOGO -->
+  <div id="tela-jogo" class="hidden">
+    <div class="rodada-tag" id="rodada-tag"></div>
+    <div class="top">
+      <div class="stat"><div class="lbl">PONTOS (prévia)</div><div class="val" id="score">0</div></div>
+      <div class="stat"><div class="lbl">TEMPO</div><div class="val" id="timer">3:00</div></div>
+    </div>
+    <div id="current">&nbsp;</div>
+    <div id="board"></div>
+    <div id="msg">Arraste pra conectar letras</div>
+    <div class="chips" id="found"></div>
+  </div>
+
+  <!-- RESULTADO DE PARTIDA -->
+  <div id="tela-resultado" class="hidden">
+    <div class="rodada-tag" id="res-rodada"></div>
+    <div class="venc" id="venc"></div>
+    <div class="card" id="sets-box"></div>
+    <div class="card" id="placar"></div>
+    <button onclick="iniciar()">Próxima partida</button>
+    <button class="sec" onclick="voltarLobby()">Encerrar e voltar ao lobby</button>
+  </div>
+
+  <!-- FIM DE CAMPEONATO -->
+  <div id="tela-fim" class="hidden">
+    <div class="venc" id="fim-venc"></div>
+    <div class="card" id="fim-sets"></div>
+    <div class="card" id="fim-placar"></div>
+    <button onclick="iniciar()">Novo campeonato (mesma config)</button>
+    <button class="sec" onclick="voltarLobby()">Voltar ao lobby</button>
+  </div>
+</div>
+
+<script>
+let NOME=null, faseAtual=null, rodadaAtual=-1, cfgModo="individual";
+let letters=[], path=[], cells=[], down=false, N=4;
+let pollTimer=null;
+
+function $(id){return document.getElementById(id);}
+function show(t){["login","lobby","jogo","resultado","fim"].forEach(x=>
+  $("tela-"+x).classList.toggle("hidden", x!==t));}
+function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+async function api(url,body){
+  try{
+    const opt=body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{};
+    const r=await fetch(url,opt); return await r.json();
+  }catch(e){ return null; }
+}
+
+async function entrar(){
+  const n=$("nome").value.trim(); if(!n)return;
+  const r=await api("/api/entrar",{nome:n});
+  if(r&&r.ok){ NOME=r.nome; iniciarPoll(); }
+}
+async function salvarConfig(){
+  await api("/api/config",{
+    tamanho:+$("cfg-tamanho").value,
+    duracao:+$("cfg-duracao").value,
+    modo:$("cfg-modo").value,
+    n_partidas:+$("cfg-partidas").value,
+  });
+  atualizarUIConfig();
+}
+function atualizarUIConfig(){
+  const modo=$("cfg-modo").value;
+  $("cfg-time-box").classList.toggle("hidden", modo!=="times");
+  const np=+$("cfg-partidas").value;
+  $("lbl-inicio").textContent = np>1 ? "campeonato" : "partida";
+}
+async function salvarTime(){
+  await api("/api/time",{nome:NOME,time:$("cfg-time").value});
+}
+async function iniciar(){ await api("/api/iniciar",{}); }
+async function voltarLobby(){ await api("/api/nova",{}); }
+
+function iniciarPoll(){
+  if(pollTimer)clearInterval(pollTimer);
+  poll(); pollTimer=setInterval(poll,1500);
+}
+async function poll(){
+  const st=await api("/api/estado?nome="+encodeURIComponent(NOME));
+  if(!st)return; aplicarEstado(st);
+}
+
+function aplicarEstado(st){
+  cfgModo = st.config.modo;
+  if(st.fase!==faseAtual || st.rodada!==rodadaAtual){
+    faseAtual=st.fase; rodadaAtual=st.rodada;
+    if(st.fase==="lobby") show("lobby");
+    else if(st.fase==="jogando"){ montarGrade(st.grade); mostrarRodada(st); show("jogo"); }
+    else if(st.fase==="resultado"){ mostrarResultado(st); show("resultado"); }
+    else if(st.fase==="fim_campeonato"){ mostrarFim(st); show("fim"); }
+  }
+  if(st.fase==="lobby"){
+    $("qtd").textContent=st.jogadores.length;
+    $("lista-j").innerHTML=st.jogadores.map(j=>{
+      const tt = j.time ? ` <span class="time-badge">${esc(j.time)}</span>` : "";
+      return `<span class="badge">${esc(j.nome)}${tt}</span>`;
+    }).join("");
+  }
+  if(st.fase==="jogando"){
+    const m=st.restante/60|0, s=String(st.restante%60).padStart(2,"0");
+    $("timer").textContent=m+":"+s;
+    $("timer").style.color = st.restante<=30 ? "#A32D2D" : "";
+    sincronizarPalavras(st.minhas_palavras);
+  }
+}
+
+function mostrarRodada(st){
+  const np=st.config.n_partidas;
+  const info = st.grade_info && st.grade_info.palavras
+    ? ` · ${st.grade_info.palavras} palavras possíveis` : "";
+  $("rodada-tag").textContent = (np>1 ? `Partida ${st.rodada} de ${np}` : "Partida") + info;
+}
+
+// ---- tabuleiro NxN ----
+function montarGrade(grade){
+  N=Math.round(Math.sqrt(grade.length));
+  letters=grade.slice(); path=[]; cells=[];
+  $("score").textContent="0"; $("found").innerHTML=""; $("current").innerHTML="&nbsp;";
+  $("msg").textContent="Arraste pra conectar letras";
+  const b=$("board");
+  b.style.gridTemplateColumns=`repeat(${N},1fr)`;
+  // fonte proporcional ao tamanho
+  const fs = Math.max(13, Math.round(120/N));
+  b.innerHTML="";
+  letters.forEach((L,i)=>{
+    const d=document.createElement("div");
+    d.className="cell"; d.textContent=L; d.dataset.i=i;
+    d.style.fontSize=fs+"px";
+    b.appendChild(d); cells.push(d);
+  });
+}
+function neigh(a,bb){const ra=a/N|0,ca=a%N,rb=bb/N|0,cb=bb%N;
+  return Math.abs(ra-rb)<=1&&Math.abs(ca-cb)<=1&&a!==bb;}
+function hl(){
+  cells.forEach(c=>c.classList.remove("on"));
+  path.forEach(i=>cells[i].classList.add("on"));
+  $("current").innerHTML=path.map(i=>letters[i]).join("")||"&nbsp;";
+}
+function addCell(i){
+  if(path.includes(i))return;
+  if(path.length&&!neigh(path[path.length-1],i))return;
+  path.push(i); hl();
+}
+function idxAt(x,y){const el=document.elementFromPoint(x,y);
+  return (el&&el.classList.contains("cell"))?+el.dataset.i:-1;}
+
+async function finalizar(){
+  if(path.length>=3){
+    const r=await api("/api/submeter",{nome:NOME,caminho:path});
+    if(r&&r.ok){
+      if(r.repetida) msg("Ja tinha essa","#b0a48c");
+      else msg("✓ "+r.palavra,"#3B6D11");
+    } else if(r){ msg("Nao vale","#a05a3c"); }
+  }
+  path=[]; hl();
+}
+function msg(t,c){$("msg").textContent=t; $("msg").style.color=c||"#7a6b55";}
+
+// prévia local (o placar real, com dobro/exclusiva, sai no fim)
+function sincronizarPalavras(lista){
+  $("found").innerHTML=lista.map(w=>`<span class="chip">${esc(w)}</span>`).join("");
+  let s=0; for(const w of lista) s += w.length;  // prévia = soma base
+  $("score").textContent=s;
+}
+
+document.addEventListener("pointerdown",e=>{
+  if(faseAtual!=="jogando")return;
+  const el=e.target.closest(".cell"); if(!el)return;
+  e.preventDefault(); down=true; path=[]; addCell(+el.dataset.i);
+});
+document.addEventListener("pointermove",e=>{
+  if(!down)return; e.preventDefault();
+  const i=idxAt(e.clientX,e.clientY); if(i>=0)addCell(i);
+});
+document.addEventListener("pointerup",()=>{ if(down){down=false; finalizar();} });
+
+// ---- resultado de partida ----
+function ordenarIndividual(placar){
+  return Object.entries(placar).map(([nome,d])=>({nome,...d}))
+    .sort((a,b)=>b.pontos-a.pontos);
+}
+function blocoPlacarIndividual(placar, times){
+  const arr=ordenarIndividual(placar);
+  return arr.map(p=>{
+    const tb = times && p.nome in times && times[p.nome] ? ` <span class="time-badge">${esc(times[p.nome])}</span>`:"";
+    const exc=p.exclusivas.map(w=>`<span class="chip exc">${esc(w)} ·${w.length*2}</span>`).join("");
+    const rep=p.repetidas.map(w=>`<span class="chip rep">${esc(w)} ·${w.length}</span>`).join("");
+    return `<div class="plinha"><span class="nome">${esc(p.nome)}${tb}</span><span class="pts">${p.pontos} pts</span></div>
+      <div class="chips" style="margin:6px 0 4px">${exc}${rep}</div>`;
+  }).join("");
+}
+function blocoSets(vitorias, modo){
+  const arr=Object.entries(vitorias).sort((a,b)=>b[1]-a[1]);
+  if(!arr.length) return "";
+  return `<h3 style="margin-top:0">Vitórias</h3><div class="sets">`+
+    arr.map(([k,v])=>`<div class="set-item"><div class="n">${v}</div><div class="l">${esc(k)}</div></div>`).join("")+
+    `</div>`;
+}
+function timesDosJogadores(st){
+  const m={}; (st.jogadores||[]).forEach(j=>m[j.nome]=j.time); return m;
+}
+
+function mostrarResultado(st){
+  const np=st.config.n_partidas;
+  $("res-rodada").textContent = np>1 ? `Fim da partida ${st.rodada} de ${np}` : "";
+  let venc;
+  if(st.config.modo==="times"){
+    const arr=Object.entries(st.placar_times).sort((a,b)=>b[1]-a[1]);
+    venc = arr.length ? `🏆 Time ${esc(arr[0][0])} venceu a partida` : "Sem pontos";
+  } else {
+    const arr=ordenarIndividual(st.placar);
+    venc = (arr.length&&arr[0].pontos>0) ? `🏆 ${esc(arr[0].nome)} venceu a partida` : "Sem pontos";
+  }
+  $("venc").textContent=venc;
+  $("sets-box").innerHTML = np>1 ? blocoSets(st.vitorias, st.config.modo) : "";
+  $("sets-box").classList.toggle("hidden", np<=1);
+  let html="";
+  if(st.config.modo==="times"){
+    const arrT=Object.entries(st.placar_times).sort((a,b)=>b[1]-a[1]);
+    html += `<h3 style="margin-top:0">Placar dos times</h3>`+
+      arrT.map(([t,p])=>`<div class="plinha"><span class="nome">Time ${esc(t)}</span><span class="pts">${p} pts</span></div>`).join("");
+    html += `<h3>Por jogador</h3>`;
+  }
+  html += blocoPlacarIndividual(st.placar, timesDosJogadores(st));
+  $("placar").innerHTML=html;
+}
+
+function mostrarFim(st){
+  const arr=Object.entries(st.vitorias).sort((a,b)=>b[1]-a[1]);
+  if(arr.length){
+    const campeao=arr[0][0];
+    const rotulo = st.config.modo==="times" ? `Time ${esc(campeao)}` : esc(campeao);
+    $("fim-venc").textContent=`🏆 Campeão: ${rotulo}`;
+  } else $("fim-venc").textContent="Campeonato encerrado";
+  $("fim-sets").innerHTML = `<h3 style="margin-top:0">Placar final (vitórias)</h3>`+
+    arr.map(([k,v])=>`<div class="plinha"><span class="nome">${esc(k)}</span><span class="pts">${v} vitória(s)</span></div>`).join("");
+  // histórico
+  let h="<h3 style='margin-top:0'>Partidas</h3>";
+  (st.historico||[]).forEach(x=>{
+    const r = st.config.modo==="times" ? `Time ${esc(x.vencedor)}` : esc(x.vencedor);
+    h+=`<div class="plinha"><span class="nome">Partida ${x.rodada}</span><span class="pts">${r}</span></div>`;
+  });
+  $("fim-placar").innerHTML=h;
+}
+</script>
+</body>
+</html>
