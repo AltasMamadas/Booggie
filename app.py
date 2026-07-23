@@ -8,10 +8,28 @@ import random
 import threading
 from flask import Flask, request, jsonify, send_from_directory
 import game_core as gc
+import auth
+import db
 
 app = Flask(__name__, static_folder="static")
 
 LOCK = threading.Lock()
+
+
+def _autenticar():
+    """Lê o header Authorization: Bearer <token> e retorna (pid, nome) ou (None, None)."""
+    cabecalho = request.headers.get("Authorization", "")
+    if not cabecalho.startswith("Bearer "):
+        return None, None
+    return auth.verificar_token(cabecalho[7:])
+
+
+def _exigir_login():
+    """Retorna (pid, nome, None) se autenticado, ou (None, None, resposta_erro)."""
+    pid, nome = _autenticar()
+    if not nome:
+        return None, None, (jsonify({"erro": "nao autenticado"}), 401)
+    return pid, nome, None
 
 def estado_inicial():
     return {
@@ -250,8 +268,37 @@ def _checar_fim():
             "achadas_lista": sorted(achadas_grupo, key=lambda w: (-len(w), w)),
         }
 
-        # contabiliza vitória do set
+        # persiste estatísticas de cada jogador logado no perfil dele
         venc = _vencedor_da_partida()
+        duracao = time.time() - estado["inicio"]
+        modo = estado["config"]["modo"]
+        for nome, dados_placar in estado["placar"].items():
+            j = estado["jogadores"].get(nome)
+            if not j or not j.get("perfil_id"):
+                continue
+            palavras = j["palavras"]
+            if modo == "times":
+                ganhou = (j.get("time") or "Sem time") == venc
+            else:
+                ganhou = nome == venc
+            try:
+                db.persistir_partida(j["perfil_id"], {
+                    "mode": modo,
+                    "team": j.get("time") if modo == "times" else None,
+                    "score": dados_placar["pontos"],
+                    "words_found": len(palavras),
+                    "longest_word": max(palavras, key=len) if palavras else None,
+                    "avg_word_length": (
+                        sum(len(w) for w in palavras) / len(palavras)
+                    ) if palavras else 0,
+                    "words_per_second": (len(palavras) / duracao) if duracao > 0 else 0,
+                    "won": ganhou,
+                    "duration_seconds": duracao,
+                })
+            except Exception as e:
+                print(f"[perfil] falha ao persistir partida de {nome}: {e}")
+
+        # contabiliza vitória do set
         if venc is not None:
             estado["vitorias"][venc] = estado["vitorias"].get(venc, 0) + 1
             if estado["config"]["modo"] == "times":
@@ -289,19 +336,48 @@ def index():
     return send_from_directory("static", "index.html")
 
 
+@app.route("/api/perfil/criar", methods=["POST"])
+def perfil_criar():
+    data = request.json or {}
+    username = (data.get("username") or "").strip()[:16]
+    pin = (data.get("pin") or "").strip()
+    if not username or not (pin.isdigit() and len(pin) == 4):
+        return jsonify({"ok": False, "motivo": "usuario ou pin invalido"}), 400
+    if db.buscar_perfil(username):
+        return jsonify({"ok": False, "motivo": "usuario ja existe"}), 409
+    pid = db.criar_perfil(username, auth.hash_pin(pin))
+    token = auth.gerar_token(pid, username)
+    return jsonify({"ok": True, "token": token, "username": username})
+
+
+@app.route("/api/perfil/login", methods=["POST"])
+def perfil_login():
+    data = request.json or {}
+    username = (data.get("username") or "").strip()[:16]
+    pin = (data.get("pin") or "").strip()
+    perfil = db.buscar_perfil(username)
+    if not perfil or not auth.checar_pin(pin, perfil["pin_hash"]):
+        return jsonify({"ok": False, "motivo": "usuario ou pin incorretos"}), 401
+    token = auth.gerar_token(perfil["id"], username)
+    stats = db.obter_stats(perfil["id"])
+    return jsonify({"ok": True, "token": token, "username": username, "stats": stats})
+
+
 @app.route("/api/entrar", methods=["POST"])
 def entrar():
-    nome = (request.json or {}).get("nome", "").strip()[:16]
-    if not nome:
-        return jsonify({"erro": "nome vazio"}), 400
+    pid, nome, erro = _exigir_login()
+    if erro:
+        return erro
     with LOCK:
         if nome not in estado["jogadores"]:
             estado["jogadores"][nome] = {
                 "palavras": set(), "visto": time.time(), "time": None,
                 "vivo": True, "fim_individual": 0, "ultima_palavra": 0,
+                "perfil_id": pid,
             }
         else:
             estado["jogadores"][nome]["visto"] = time.time()
+            estado["jogadores"][nome]["perfil_id"] = pid
         # o primeiro a entrar vira host
         if estado["host"] is None or estado["host"] not in estado["jogadores"]:
             estado["host"] = nome
@@ -323,8 +399,11 @@ def _passar_host():
 def config():
     """Atualiza config da sala (só no lobby)."""
     data = request.json or {}
+    _, nome, erro = _exigir_login()
+    if erro:
+        return erro
     with LOCK:
-        if not _eh_host(data.get("nome")):
+        if not _eh_host(nome):
             return jsonify({"ok": False, "motivo": "so o host configura"})
         if estado["fase"] not in ("lobby", "fim_campeonato"):
             return jsonify({"ok": False, "motivo": "so no lobby"})
@@ -360,7 +439,9 @@ def config():
 def set_time():
     """Define o time de um jogador (só no lobby)."""
     data = request.json or {}
-    nome = data.get("nome", "")
+    _, nome, erro = _exigir_login()
+    if erro:
+        return erro
     t = (data.get("time", "") or "").strip()[:16] or None
     with LOCK:
         if nome in estado["jogadores"]:
@@ -370,9 +451,11 @@ def set_time():
 
 @app.route("/api/iniciar", methods=["POST"])
 def iniciar():
-    data = request.json or {}
+    _, nome, erro = _exigir_login()
+    if erro:
+        return erro
     with LOCK:
-        if not _eh_host(data.get("nome")):
+        if not _eh_host(nome):
             return jsonify({"ok": False, "motivo": "so o host inicia"})
         # se veio de fim de campeonato, zera o placar de sets
         if estado["fase"] == "fim_campeonato":
@@ -469,9 +552,11 @@ def palavras_extras():
 @app.route("/api/nova", methods=["POST"])
 def nova():
     """Encerra a partida / volta ao lobby. Só o host (ou sala vazia)."""
-    data = request.json or {}
+    _, nome, erro = _exigir_login()
+    if erro:
+        return erro
     with LOCK:
-        if estado["jogadores"] and not _eh_host(data.get("nome")):
+        if estado["jogadores"] and not _eh_host(nome):
             return jsonify({"ok": False, "motivo": "so o host encerra"})
         _reset_para_lobby(full=True)
     return jsonify({"ok": True})
@@ -480,8 +565,9 @@ def nova():
 @app.route("/api/sair", methods=["POST"])
 def sair():
     """Jogador sai da sala. Se era o host, passa o bastão."""
-    data = request.json or {}
-    nome = data.get("nome", "")
+    _, nome, erro = _exigir_login()
+    if erro:
+        return erro
     with LOCK:
         if nome in estado["jogadores"]:
             del estado["jogadores"][nome]
@@ -497,7 +583,9 @@ def sair():
 @app.route("/api/submeter", methods=["POST"])
 def submeter():
     data = request.json or {}
-    nome = data.get("nome", "")
+    _, nome, erro = _exigir_login()
+    if erro:
+        return erro
     caminho = data.get("caminho", [])
     with LOCK:
         if estado["fase"] != "jogando":
@@ -551,8 +639,9 @@ def dica():
     ainda não achou. Disponível nos modos individual, times e caça.
     Se todas as de 3 letras já foram achadas, não devolve nada.
     """
-    data = request.json or {}
-    nome = data.get("nome", "")
+    _, nome, erro = _exigir_login()
+    if erro:
+        return erro
     with LOCK:
         if estado["fase"] != "jogando":
             return jsonify({"ok": False, "motivo": "fora de partida"})
@@ -572,7 +661,9 @@ def dica():
 
 @app.route("/api/estado")
 def get_estado():
-    nome = request.args.get("nome", "")
+    _, nome, erro = _exigir_login()
+    if erro:
+        return erro
     with LOCK:
         agora = time.time()
         if nome in estado["jogadores"]:

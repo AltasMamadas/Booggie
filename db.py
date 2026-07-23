@@ -1,0 +1,95 @@
+"""
+Acesso ao Postgres do Supabase (perfis, estatísticas agregadas, histórico
+de partidas). Conexão direta via psycopg — sem ORM, condizente com o
+resto do projeto.
+"""
+import os
+import psycopg
+from psycopg.rows import dict_row
+
+_DB_URL = os.environ.get("SUPABASE_DB_URL")
+if not _DB_URL:
+    raise RuntimeError("defina a env var SUPABASE_DB_URL")
+
+
+def _conn():
+    return psycopg.connect(_DB_URL, row_factory=dict_row)
+
+
+def criar_perfil(username, pin_hash):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "insert into profiles (username, pin_hash) values (%s, %s) returning id",
+                (username, pin_hash),
+            )
+            pid = cur.fetchone()["id"]
+            cur.execute(
+                "insert into profile_stats (profile_id) values (%s)", (pid,)
+            )
+        conn.commit()
+    return pid
+
+
+def buscar_perfil(username):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select id, username, pin_hash from profiles where username = %s",
+                (username,),
+            )
+            return cur.fetchone()
+
+
+def obter_stats(profile_id):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select * from profile_stats where profile_id = %s", (profile_id,)
+            )
+            return cur.fetchone()
+
+
+def persistir_partida(profile_id, dados):
+    """
+    dados: {mode, team, score, words_found, longest_word, avg_word_length,
+            words_per_second, won, duration_seconds}
+    """
+    longest_word_len = len(dados["longest_word"] or "")
+    total_word_chars = round((dados["avg_word_length"] or 0) * dados["words_found"])
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """insert into match_history
+                   (profile_id, mode, team, score, words_found, longest_word,
+                    avg_word_length, words_per_second, won, duration_seconds)
+                   values (%(profile_id)s, %(mode)s, %(team)s, %(score)s,
+                           %(words_found)s, %(longest_word)s, %(avg_word_length)s,
+                           %(words_per_second)s, %(won)s, %(duration_seconds)s)""",
+                {**dados, "profile_id": profile_id},
+            )
+            cur.execute(
+                """update profile_stats set
+                     total_games = total_games + 1,
+                     total_wins = total_wins + %(won_inc)s,
+                     best_score = greatest(best_score, %(score)s),
+                     longest_word = case when %(longest_word_len)s > longest_word_len
+                                         then %(longest_word)s else longest_word end,
+                     longest_word_len = greatest(longest_word_len, %(longest_word_len)s),
+                     total_words_found = total_words_found + %(words_found)s,
+                     total_word_chars = total_word_chars + %(total_word_chars)s,
+                     total_play_seconds = total_play_seconds + %(duration_seconds)s,
+                     updated_at = now()
+                   where profile_id = %(profile_id)s""",
+                {
+                    "profile_id": profile_id,
+                    "won_inc": 1 if dados["won"] else 0,
+                    "score": dados["score"],
+                    "longest_word": dados["longest_word"],
+                    "longest_word_len": longest_word_len,
+                    "words_found": dados["words_found"],
+                    "total_word_chars": total_word_chars,
+                    "duration_seconds": dados["duration_seconds"],
+                },
+            )
+        conn.commit()

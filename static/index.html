@@ -276,9 +276,18 @@
 
   <!-- LOGIN -->
   <div id="tela-login">
-    <div class="card">
-      <input id="nome" placeholder="Seu nome" maxlength="16" autocomplete="off">
-      <button onclick="entrar()">Entrar na sala</button>
+    <div class="card" id="perfil-carregando">
+      <div class="aviso" style="margin:0">Carregando seu perfil...</div>
+    </div>
+    <div class="card hidden" id="perfil-form">
+      <div class="row2" style="margin-bottom:10px">
+        <button id="tab-entrar" onclick="mostrarAbaPerfil('entrar')">Entrar</button>
+        <button id="tab-criar" class="sec" onclick="mostrarAbaPerfil('criar')">Criar conta</button>
+      </div>
+      <input id="perfil-user" placeholder="Usuário" maxlength="16" autocomplete="off">
+      <input id="perfil-pin" placeholder="PIN de 4 dígitos" maxlength="4" inputmode="numeric" autocomplete="off">
+      <button onclick="submeterPerfil()" id="btn-perfil-acao">Entrar</button>
+      <div class="aviso left" id="perfil-msg"></div>
     </div>
   </div>
 
@@ -415,6 +424,12 @@
   <!-- CONFIGURAÇÕES -->
   <div id="tela-config" class="hidden">
     <div class="card">
+      <h3>Conta</h3>
+      <div class="aviso left" style="margin-top:0" id="conta-user"></div>
+      <button class="sec mini" onclick="logoutPerfil()">Sair da conta</button>
+    </div>
+
+    <div class="card">
       <h3>Som</h3>
       <div class="switch">
         <label>Música durante a partida</label>
@@ -478,6 +493,7 @@
 <script src="/static/audio.js"></script>
 <script>
 let NOME=null, faseAtual=null, rodadaAtual=-1;
+let PERFIL_TOKEN=null, PERFIL_USER=null, abaPerfil="entrar";
 let letters=[], path=[], cells=[], down=false, N=4;
 let pollTimer=null, telaAnterior="login", ultimoEstado=null;
 let difSel="medio", avisou30=false;
@@ -493,23 +509,75 @@ function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":
 
 async function api(url,body){
   try{
-    const opt=body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{};
+    const headers={};
+    if(PERFIL_TOKEN) headers["Authorization"]="Bearer "+PERFIL_TOKEN;
+    const opt={headers};
+    if(body){ opt.method="POST"; headers["Content-Type"]="application/json"; opt.body=JSON.stringify(body); }
     const r=await fetch(url,opt); return await r.json();
   }catch(e){ return null; }
 }
 
-async function entrar(){
-  const n=$("nome").value.trim(); if(!n)return;
+// ---------- perfil (usuário + PIN) ----------
+function carregarPerfilLocal(){
+  try{
+    const p=JSON.parse(localStorage.getItem("bg_perfil")||"null");
+    if(p&&p.token&&p.username){ PERFIL_TOKEN=p.token; PERFIL_USER=p.username; return true; }
+  }catch(e){}
+  return false;
+}
+function salvarPerfilLocal(token,username){
+  PERFIL_TOKEN=token; PERFIL_USER=username;
+  try{ localStorage.setItem("bg_perfil", JSON.stringify({token,username})); }catch(e){}
+  $("conta-user").textContent="Logado como: "+username;
+}
+function mostrarAbaPerfil(aba){
+  abaPerfil=aba;
+  $("tab-entrar").classList.toggle("sec", aba!=="entrar");
+  $("tab-criar").classList.toggle("sec", aba!=="criar");
+  $("btn-perfil-acao").textContent = aba==="entrar" ? "Entrar" : "Criar conta";
+  $("perfil-msg").textContent="";
+}
+async function submeterPerfil(){
+  const username=$("perfil-user").value.trim();
+  const pin=$("perfil-pin").value.trim();
+  if(!username){ $("perfil-msg").textContent="Digite um usuário."; return; }
+  if(!/^\d{4}$/.test(pin)){ $("perfil-msg").textContent="O PIN tem que ter 4 dígitos."; return; }
   Audio2.destravar();
-  const r=await api("/api/entrar",{nome:n});
-  if(r&&r.ok){ NOME=r.nome; iniciarPoll(); }
+  const url = abaPerfil==="entrar" ? "/api/perfil/login" : "/api/perfil/criar";
+  const r=await api(url,{username,pin});
+  if(r&&r.ok){
+    salvarPerfilLocal(r.token,r.username);
+    $("perfil-msg").textContent="";
+    await entrarSala();
+  }else{
+    $("perfil-msg").textContent = (r&&r.motivo) || "Não deu pra entrar. Tenta de novo.";
+  }
+}
+async function entrarSala(){
+  $("perfil-form").classList.add("hidden");
+  $("perfil-carregando").classList.remove("hidden");
+  const r=await api("/api/entrar",{});
+  if(r&&r.ok){
+    NOME=r.nome; iniciarPoll();
+  }else{
+    // token inválido/expirado: força novo login
+    logoutPerfil();
+  }
+}
+function logoutPerfil(){
+  if(pollTimer) clearInterval(pollTimer);
+  PERFIL_TOKEN=null; PERFIL_USER=null; NOME=null; souHost=false; faseAtual=null; rodadaAtual=-1;
+  try{ localStorage.removeItem("bg_perfil"); }catch(e){}
+  $("perfil-carregando").classList.add("hidden");
+  $("perfil-form").classList.remove("hidden");
+  mostrarAbaPerfil("entrar");
+  show("login");
 }
 
 // ---------- configurações de jogo ----------
 async function salvarConfig(){
   if(!souHost) return;
   await api("/api/config",{
-    nome:NOME,
     tamanho:+$("cfg-tamanho").value,
     duracao:+$("cfg-duracao").value,
     modo:$("cfg-modo").value,
@@ -553,28 +621,29 @@ function atualizarUIConfig(){
 
   $("lbl-inicio").textContent = (+$("cfg-partidas").value)>1 ? "campeonato" : "partida";
 }
-async function salvarTime(){ await api("/api/time",{nome:NOME,time:$("cfg-time").value}); }
+async function salvarTime(){ await api("/api/time",{time:$("cfg-time").value}); }
 async function iniciar(){
   if(!souHost) return;
   Audio2.destravar();
-  await api("/api/iniciar",{nome:NOME});
+  await api("/api/iniciar",{});
 }
 async function voltarLobby(){
   if(!souHost) return;
-  await api("/api/nova",{nome:NOME});
+  await api("/api/nova",{});
 }
 async function sairDaSala(){
   if(!confirm("Sair da sala?")) return;
-  await api("/api/sair",{nome:NOME});
+  await api("/api/sair",{});
   if(pollTimer) clearInterval(pollTimer);
   NOME=null; souHost=false; faseAtual=null; rodadaAtual=-1;
   Audio2.pararMusica();
-  show("login");
+  // continua logado no perfil; só volta pra sala
+  await entrarSala();
 }
 async function encerrarPartida(){
   if(!souHost) return;
   if(!confirm("Encerrar a partida para todos?")) return;
-  await api("/api/nova",{nome:NOME});
+  await api("/api/nova",{});
 }
 
 // ---------- polling ----------
@@ -583,7 +652,7 @@ function iniciarPoll(){
   poll(); pollTimer=setInterval(poll,1500);
 }
 async function poll(){
-  const st=await api("/api/estado?nome="+encodeURIComponent(NOME));
+  const st=await api("/api/estado");
   if(!st)return; ultimoEstado=st; aplicarEstado(st);
 }
 
@@ -908,7 +977,7 @@ function flutuarGanho(txt){
 
 async function finalizar(){
   if(path.length>=3){
-    const r=await api("/api/submeter",{nome:NOME,caminho:path});
+    const r=await api("/api/submeter",{caminho:path});
     if(r&&r.ok){
       if(r.repetida){ msg("Já tinha essa","#b0a48c"); Audio2.sfx("repetida"); }
       else {
@@ -962,7 +1031,7 @@ function atualizarBotaoDica(){
 }
 async function pedirDica(){
   if(segundosParaDica()>0)return;
-  const r=await api("/api/dica",{nome:NOME});
+  const r=await api("/api/dica",{});
   if(!r||!r.ok){ $("dica-txt").textContent=""; return; }
   if(!r.palavra){
     $("dica-txt").textContent="Você já achou todas as de 3 letras!";
@@ -1279,6 +1348,18 @@ async function enviarPalavras(acao){
   Audio2.setSfx($("sw-sfx").checked);
   Audio2.setVolMusica((+$("vol-musica").value)/100);
   Audio2.setVolSfx((+$("vol-sfx").value)/100);
+})();
+
+// ---------- perfil: entra automático se já tiver token salvo ----------
+(function initPerfil(){
+  if(carregarPerfilLocal()){
+    $("conta-user").textContent="Logado como: "+PERFIL_USER;
+    entrarSala();
+  }else{
+    $("perfil-carregando").classList.add("hidden");
+    $("perfil-form").classList.remove("hidden");
+    mostrarAbaPerfil("entrar");
+  }
 })();
 </script>
 </body>
