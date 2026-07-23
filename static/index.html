@@ -263,6 +263,16 @@
   .hist-num{width:30px;font-size:12px;color:#9a8a72;font-weight:700;}
   .hist-venc{flex:1;font-weight:600;}
   .hist-pts{font-weight:700;color:var(--madeira);}
+  /* leaderboard & estatísticas */
+  .lb-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none;}
+  .lb-tabs::-webkit-scrollbar{display:none;}
+  .lb-tab{flex-shrink:0;padding:8px 12px;font-size:13px;font-weight:600;border-radius:8px;width:auto;margin-bottom:0;}
+  .stat-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .stat-item{flex:1;min-width:80px;background:#f0e7d4;border-radius:10px;padding:10px 8px;text-align:center;}
+  .stat-item .n{font-size:20px;font-weight:700;color:var(--madeira);}
+  .stat-item .l{font-size:11px;color:#9a8a72;margin-top:2px;}
+  .cfg-topo{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .cfg-topo-titulo{font-size:18px;font-weight:700;color:var(--madeira);}
 
 </style>
 </head>
@@ -361,7 +371,10 @@
 
     <button id="btn-iniciar" onclick="iniciar()">Iniciar <span id="lbl-inicio">partida</span></button>
     <div class="aviso" id="aviso-host">Só o host configura e inicia a partida.</div>
-    <button class="sec mini" style="margin-top:10px" onclick="sairDaSala()">Sair da sala</button>
+    <div class="row2" style="margin-top:10px">
+      <button class="sec mini" onclick="abrirLeaderboard()">🏆 Leaderboard</button>
+      <button class="sec mini" onclick="sairDaSala()">Sair da sala</button>
+    </div>
   </div>
 
   <!-- JOGO -->
@@ -421,12 +434,48 @@
     <button class="sec" onclick="voltarLobby()">Voltar ao lobby</button>
   </div>
 
+  <!-- ESTATÍSTICAS -->
+  <div id="tela-stats" class="hidden">
+    <div class="cfg-topo">
+      <div class="cfg-topo-titulo">Minhas Estatísticas</div>
+      <button class="btn-cfg" onclick="fecharStats()">✕</button>
+    </div>
+    <div class="card" id="stats-conteudo"><div class="aviso">Carregando...</div></div>
+    <button class="sec" onclick="fecharStats()">Voltar</button>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div id="tela-leaderboard" class="hidden">
+    <div class="cfg-topo">
+      <div class="cfg-topo-titulo">Leaderboard</div>
+      <button class="btn-cfg" onclick="fecharLeaderboard()">✕</button>
+    </div>
+    <div class="card">
+      <div class="lb-tabs">
+        <button id="lb-tab-0" class="lb-tab" onclick="mudarAbaLb(0)">🏆 Pontuação</button>
+        <button id="lb-tab-1" class="lb-tab sec" onclick="mudarAbaLb(1)">🎖 Vitórias</button>
+        <button id="lb-tab-2" class="lb-tab sec" onclick="mudarAbaLb(2)">📝 Palavra</button>
+        <button id="lb-tab-3" class="lb-tab sec" onclick="mudarAbaLb(3)">⚡ Velocidade</button>
+        <button id="lb-tab-4" class="lb-tab sec" onclick="mudarAbaLb(4)">📚 Total</button>
+      </div>
+      <div id="lb-lista"><div class="aviso">Carregando...</div></div>
+    </div>
+    <button class="sec" onclick="fecharLeaderboard()">Voltar</button>
+  </div>
+
   <!-- CONFIGURAÇÕES -->
   <div id="tela-config" class="hidden">
+    <div class="cfg-topo">
+      <div class="cfg-topo-titulo">Configurações</div>
+      <button class="btn-cfg" onclick="fecharConfig()">✕</button>
+    </div>
     <div class="card">
       <h3>Conta</h3>
       <div class="aviso left" style="margin-top:0" id="conta-user"></div>
-      <button class="sec mini" onclick="logoutPerfil()">Sair da conta</button>
+      <div class="row2">
+        <button class="sec mini" onclick="abrirStats()">📊 Estatísticas</button>
+        <button class="sec mini" onclick="logoutPerfil()">Sair da conta</button>
+      </div>
     </div>
 
     <div class="card">
@@ -494,6 +543,7 @@
 <script>
 let NOME=null, faseAtual=null, rodadaAtual=-1;
 let PERFIL_TOKEN=null, PERFIL_USER=null, abaPerfil="entrar";
+let lbDados=null, lbAba=0;
 let letters=[], path=[], cells=[], down=false, N=4;
 let pollTimer=null, telaAnterior="login", ultimoEstado=null;
 let difSel="medio", avisou30=false;
@@ -503,7 +553,7 @@ let souHost=false, ultimoCresceu=0, ultimoProg=0;
 const DICA_ESPERA=10000;
 
 function $(id){return document.getElementById(id);}
-function show(t){["login","lobby","jogo","resultado","fim","config"].forEach(x=>
+function show(t){["login","lobby","jogo","resultado","fim","config","stats","leaderboard"].forEach(x=>
   $("tela-"+x).classList.toggle("hidden", x!==t));}
 function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 
@@ -1252,6 +1302,100 @@ function mostrarFim(st){
   const tp=blocoTodasPalavras(st);
   $("fim-todas").innerHTML=tp;
   $("fim-todas").classList.toggle("hidden",!tp);
+}
+
+// ---------- leaderboard ----------
+const LB_CATS=[
+  {key:"best_score",      fmt:(v)=>`${v} pts`,              sub:null},
+  {key:"total_wins",      fmt:(v,r)=>`${v} vitória${v!=1?'s':''}`, sub:r=>`${r.total_games} partida${r.total_games!=1?'s':''}`},
+  {key:"longest_word_len",fmt:(v,r)=>r.longest_word?`${esc(r.longest_word)} · ${v} letras`:`${v} letras`, sub:null},
+  {key:"words_per_second",fmt:(v)=>`${(+v).toFixed(3)} pal/s`, sub:r=>`${r.total_words_found} palavras`},
+  {key:"total_words_found",fmt:(v)=>`${v} palavras`,        sub:r=>`${r.total_games} partida${r.total_games!=1?'s':''}`},
+];
+async function abrirLeaderboard(){
+  show("leaderboard");
+  mudarAbaLb(lbAba);
+  if(!lbDados) await carregarLeaderboard();
+  else renderizarLb();
+}
+function fecharLeaderboard(){ show(NOME?"lobby":"login"); }
+async function carregarLeaderboard(){
+  $("lb-lista").innerHTML='<div class="aviso">Carregando...</div>';
+  const r=await api("/api/leaderboard");
+  if(!r||!r.ok){ $("lb-lista").innerHTML='<div class="aviso">Não foi possível carregar.</div>'; return; }
+  lbDados=r.data;
+  renderizarLb();
+}
+function mudarAbaLb(idx){
+  lbAba=idx;
+  LB_CATS.forEach((_,i)=>{ const b=$("lb-tab-"+i); if(b) b.classList.toggle("sec",i!==idx); });
+  renderizarLb();
+}
+function renderizarLb(){
+  if(!lbDados) return;
+  const cat=LB_CATS[lbAba];
+  const sorted=[...lbDados].filter(r=>+r[cat.key]>0).sort((a,b)=>+b[cat.key]-(+a[cat.key]));
+  if(!sorted.length){ $("lb-lista").innerHTML='<div class="aviso">Nenhum jogador ainda.</div>'; return; }
+  $("lb-lista").innerHTML=sorted.slice(0,20).map((row,i)=>{
+    const val=cat.fmt(row[cat.key],row);
+    const sub=cat.sub?`<br><span style="font-size:11px;color:#9a8a72">${cat.sub(row)}</span>`:'';
+    const eu=row.username===PERFIL_USER;
+    return `<div class="rank-linha${eu?' plinha eu':''}">
+      <div class="rank-pos">${medalha(i)}</div>
+      <div class="rank-nome">${esc(row.username)}${eu?' (você)':''}</div>
+      <div class="rank-vals"><b>${val}</b>${sub}</div>
+    </div>`;
+  }).join("");
+}
+
+// ---------- estatísticas pessoais ----------
+async function abrirStats(){
+  show("stats");
+  await carregarMeusStats();
+}
+function fecharStats(){ show("config"); }
+async function carregarMeusStats(){
+  $("stats-conteudo").innerHTML='<div class="aviso">Carregando...</div>';
+  const r=await api("/api/perfil/stats");
+  if(!r||!r.ok){ $("stats-conteudo").innerHTML='<div class="aviso">Erro ao carregar.</div>'; return; }
+  renderStats(r.stats, r.username);
+}
+function renderStats(s, username){
+  if(!s||+s.total_games===0){
+    $("stats-conteudo").innerHTML=`<div style="text-align:center;margin-bottom:12px">
+      <div style="font-size:22px;font-weight:700;color:var(--madeira)">${esc(username)}</div></div>
+      <div class="aviso">Nenhuma partida jogada ainda.</div>`;
+    return;
+  }
+  const taxa=+s.total_games>0?Math.round(+s.total_wins/+s.total_games*100):0;
+  const wps=+s.total_play_seconds>0?(+s.total_words_found/+s.total_play_seconds).toFixed(3):'0.000';
+  const avgLen=+s.total_words_found>0?(+s.total_word_chars/+s.total_words_found).toFixed(1):'0.0';
+  const seg=+s.total_play_seconds;
+  const h=Math.floor(seg/3600), m=Math.floor((seg%3600)/60);
+  const tempo=h>0?`${h}h ${m}min`:`${m}min`;
+  $("stats-conteudo").innerHTML=`
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:22px;font-weight:700;color:var(--madeira)">${esc(username)}</div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="n">${s.total_games}</div><div class="l">partidas</div></div>
+      <div class="stat-item"><div class="n">${s.total_wins}</div><div class="l">vitórias</div></div>
+      <div class="stat-item"><div class="n">${taxa}%</div><div class="l">aproveit.</div></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="n">${s.best_score}</div><div class="l">recorde pts</div></div>
+      <div class="stat-item"><div class="n">${s.total_words_found}</div><div class="l">palavras</div></div>
+      <div class="stat-item"><div class="n">${tempo}</div><div class="l">tempo total</div></div>
+    </div>
+    ${s.longest_word?`<div class="maior-box" style="margin-bottom:10px">
+      <div class="l">Palavra mais longa</div>
+      <div class="w">${esc(s.longest_word)}</div>
+      <div class="l">${s.longest_word_len} letras</div>
+    </div>`:''}
+    <div class="stat-grid">
+      <div class="stat-item"><div class="n">${wps}</div><div class="l">palavras/seg</div></div>
+      <div class="stat-item"><div class="n">${avgLen}</div><div class="l">letras/pal</div></div>
+    </div>`;
 }
 
 // ---------- tela de configurações ----------

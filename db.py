@@ -50,6 +50,34 @@ def obter_stats(profile_id):
             return cur.fetchone()
 
 
+def obter_leaderboard():
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                select p.username,
+                       s.best_score,
+                       s.total_wins,
+                       s.total_games,
+                       s.longest_word,
+                       s.longest_word_len,
+                       s.total_words_found,
+                       s.total_word_chars,
+                       s.total_play_seconds,
+                       case when s.total_play_seconds > 0
+                            then round(s.total_words_found::numeric / s.total_play_seconds, 3)
+                            else 0 end as words_per_second,
+                       case when s.total_words_found > 0
+                            then round(s.total_word_chars::numeric / s.total_words_found, 2)
+                            else 0 end as avg_word_length
+                from profile_stats s
+                join profiles p on p.id = s.profile_id
+                where s.total_games > 0
+                order by s.best_score desc
+                limit 100
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+
 def persistir_partida(profile_id, dados):
     """
     dados: {mode, team, score, words_found, longest_word, avg_word_length,

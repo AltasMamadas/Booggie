@@ -321,14 +321,23 @@ def _checar_fim():
 
 
 def _limpar_ausentes():
-    if estado["fase"] != "lobby":
-        return
     agora = time.time()
-    fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > 30]
-    for n in fora:
-        del estado["jogadores"][n]
-    if fora:
+    if estado["fase"] != "jogando":
+        fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > 30]
+        for n in fora:
+            del estado["jogadores"][n]
+    elif estado["jogadores"] and all(agora - j["visto"] > 30 for j in estado["jogadores"].values()):
+        # todos desconectaram durante o jogo → reset
+        _reset_para_lobby(full=True)
+        estado["host"] = None
+        return
+    # reassign host se necessário (inclusive durante o jogo)
+    if estado["host"] not in estado["jogadores"]:
         _passar_host()
+    # sala vazia fora do jogo → reset
+    if not estado["jogadores"] and estado["fase"] != "jogando":
+        _reset_para_lobby(full=True)
+        estado["host"] = None
 
 
 @app.route("/")
@@ -348,6 +357,31 @@ def perfil_criar():
     pid = db.criar_perfil(username, auth.hash_pin(pin))
     token = auth.gerar_token(pid, username)
     return jsonify({"ok": True, "token": token, "username": username})
+
+
+@app.route("/api/perfil/stats")
+def perfil_stats():
+    pid, nome, erro = _exigir_login()
+    if erro:
+        return erro
+    stats = db.obter_stats(pid)
+    if not stats:
+        return jsonify({"ok": False, "motivo": "perfil nao encontrado"}), 404
+    return jsonify({"ok": True, "stats": {k: (str(v) if hasattr(v, '__float__') else v)
+                                           for k, v in stats.items()}, "username": nome})
+
+
+@app.route("/api/leaderboard")
+def leaderboard():
+    _, _, erro = _exigir_login()
+    if erro:
+        return erro
+    data = db.obter_leaderboard()
+    # converte Decimal para float para JSON
+    resultado = []
+    for row in data:
+        resultado.append({k: float(v) if hasattr(v, '__float__') else v for k, v in row.items()})
+    return jsonify({"ok": True, "data": resultado})
 
 
 @app.route("/api/perfil/login", methods=["POST"])
