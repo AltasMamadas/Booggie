@@ -79,3 +79,30 @@ def contar_palavras(grade, trie, n=None, limite_palavras=None, deadline=None):
     # TimeoutError sobe pra quem chamou decidir
 
     return len(encontradas), maior[0]
+
+
+def listar_palavras(grade, trie, n=None):
+    """Como contar_palavras, mas devolve o conjunto de palavras encontráveis."""
+    if n is None:
+        n = int(round(len(grade) ** 0.5))
+    viz = _vizinhos_idx(n)
+    encontradas = set()
+    total = len(grade)
+
+    def dfs(i, no, usados, palavra):
+        ch = grade[i]
+        prox = no.get(ch)
+        if prox is None:
+            return
+        palavra = palavra + ch
+        if len(palavra) >= 3 and "$" in prox:
+            encontradas.add(palavra)
+        for j in viz[i]:
+            if j not in usados:
+                usados.add(j)
+                dfs(j, prox, usados, palavra)
+                usados.discard(j)
+
+    for start in range(total):
+        dfs(start, trie, {start}, "")
+    return encontradas

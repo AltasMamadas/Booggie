@@ -90,15 +90,45 @@
   .switch label{font-size:14px;}
   input[type=checkbox]{width:auto;margin:0;transform:scale(1.3);}
   input[type=range]{width:100%;margin:0;padding:0;}
+  /* aviso visual dos últimos 15s: bordas avermelhadas pulsando */
+  #alerta-tempo{position:fixed;inset:0;pointer-events:none;z-index:50;opacity:0;
+    transition:opacity .6s ease;
+    box-shadow:inset 0 0 60px 18px rgba(163,45,45,.55);}
+  #alerta-tempo.on{opacity:1;animation:pulsaBorda 1.1s ease-in-out infinite;}
+  @keyframes pulsaBorda{
+    0%,100%{box-shadow:inset 0 0 45px 12px rgba(163,45,45,.40);}
+    50%    {box-shadow:inset 0 0 80px 26px rgba(163,45,45,.75);}
+  }
+  /* seções retráteis */
+  .secao-tit{display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+    margin:0 0 12px;font-size:12px;color:#9a8a72;text-transform:uppercase;letter-spacing:.8px;}
+  .secao-tit .seta{font-size:14px;transition:transform .2s;}
+  .secao-tit.fechado .seta{transform:rotate(-90deg);}
+  .secao-corpo.fechado{display:none;}
+  /* resumo da grade */
+  .resumo-grid{display:flex;gap:10px;text-align:center;}
+  .resumo-grid > div{flex:1;background:#f0e7d4;border-radius:10px;padding:10px 6px;}
+  .resumo-grid .n{font-size:20px;font-weight:700;color:var(--madeira);}
+  .resumo-grid .l{font-size:11px;color:#9a8a72;margin-top:2px;}
+  .maior-box{background:#f0e7d4;border-radius:10px;padding:12px;margin-top:10px;text-align:center;}
+  .maior-box .w{font-size:20px;font-weight:700;color:var(--madeira);letter-spacing:1px;}
+  .maior-box .l{font-size:11px;color:#9a8a72;text-transform:uppercase;letter-spacing:.5px;}
+  .chip.perdida{background:transparent;color:#a05a3c;border-style:dashed;}
+  .hist-linha{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee3cf;}
+  .hist-linha:last-child{border-bottom:none;}
+  .hist-num{width:30px;font-size:12px;color:#9a8a72;font-weight:700;}
+  .hist-venc{flex:1;font-weight:600;}
+  .hist-pts{font-weight:700;color:var(--madeira);}
+
 </style>
 </head>
 <body>
+<div id="alerta-tempo"></div>
 <div class="wrap">
   <div class="cabecalho">
     <div class="logo">BOGGLE</div>
     <button class="btn-cfg" onclick="abrirConfig()" title="Configurações">⚙️</button>
   </div>
-  <div class="sub">jogo local · mesma grade pra todos</div>
 
   <!-- LOGIN -->
   <div id="tela-login">
@@ -197,9 +227,12 @@
     <!-- destaque do MEU resultado -->
     <div class="meu-resultado" id="meu-res"></div>
 
+    <div class="card" id="resumo-box"></div>
     <div class="card hidden" id="sets-box"></div>
     <div class="card" id="placar"></div>
     <div class="card" id="rank-box"></div>
+    <div class="card" id="hist-box"></div>
+    <div class="card" id="todas-box"></div>
     <button onclick="iniciar()">Próxima partida</button>
     <button class="sec" onclick="voltarLobby()">Encerrar e voltar ao lobby</button>
   </div>
@@ -208,9 +241,11 @@
   <div id="tela-fim" class="hidden">
     <div class="venc" id="fim-venc"></div>
     <div class="meu-resultado" id="fim-meu"></div>
+    <div class="card" id="fim-resumo"></div>
     <div class="card" id="fim-sets"></div>
     <div class="card" id="fim-rank"></div>
     <div class="card" id="fim-placar"></div>
+    <div class="card" id="fim-todas"></div>
     <button onclick="iniciar()">Novo campeonato</button>
     <button class="sec" onclick="voltarLobby()">Voltar ao lobby</button>
   </div>
@@ -390,16 +425,30 @@ function aplicarEstado(st){
     const m=st.restante/60|0, s=String(st.restante%60).padStart(2,"0");
     $("timer").textContent=m+":"+s;
     $("timer").style.color = st.restante<=30 ? "var(--vermelho)" : "";
-    if(st.restante<=30 && st.restante>0 && !avisou30){ avisou30=true; Audio2.sfx("tique"); }
+    // 30s: música acelera 20% e sobe o tom
+    if(st.restante<=30 && st.restante>0){
+      if(!avisou30){ avisou30=true; Audio2.sfx("tique"); }
+      Audio2.setAcelerado(true);
+    } else if(st.restante>30){
+      Audio2.setAcelerado(false);
+    }
+    // 15s: bordas da tela avermelhadas
+    alertaTempo(st.restante<=15 && st.restante>0);
     sincronizarPalavras(st.minhas_palavras);
+  } else {
+    alertaTempo(false);
   }
+}
+
+function alertaTempo(on){
+  $("alerta-tempo").classList.toggle("on", !!on);
 }
 
 function mostrarRodada(st){
   const np=st.config.n_partidas;
   const dif={facil:"fácil",medio:"médio",dificil:"difícil"}[st.config.dificuldade]||"";
-  const info=st.grade_info&&st.grade_info.palavras?` · ${st.grade_info.palavras} palavras possíveis`:"";
-  $("rodada-tag").textContent=(np>1?`Partida ${st.rodada} de ${np}`:`Nível ${dif}`)+info;
+  // sem contagem de palavras aqui: seria spoiler durante a partida
+  $("rodada-tag").textContent = np>1 ? `Partida ${st.rodada} de ${np}` : `Nível ${dif}`;
 }
 
 // ---------- tabuleiro ----------
@@ -552,12 +601,92 @@ function timesDosJogadores(st){
   const m={}; (st.jogadores||[]).forEach(j=>m[j.nome]=j.time); return m;
 }
 
+// ---------- seções retráteis ----------
+const secoesFechadas = new Set(JSON.parse(localStorage.getItem("bg_fechadas")||"[]"));
+function tituloSecao(id, texto){
+  const fechado = secoesFechadas.has(id) ? " fechado" : "";
+  return `<div class="secao-tit${fechado}" onclick="toggleSecao('${id}')">
+            <span>${texto}</span><span class="seta">▾</span>
+          </div>`;
+}
+function corpoSecao(id, html){
+  const fechado = secoesFechadas.has(id) ? " fechado" : "";
+  return `<div class="secao-corpo${fechado}" data-sec="${id}">${html}</div>`;
+}
+function toggleSecao(id){
+  if(secoesFechadas.has(id)) secoesFechadas.delete(id);
+  else secoesFechadas.add(id);
+  try{ localStorage.setItem("bg_fechadas", JSON.stringify([...secoesFechadas])); }catch(e){}
+  document.querySelectorAll(`[data-sec="${id}"]`).forEach(el=>
+    el.classList.toggle("fechado", secoesFechadas.has(id)));
+  document.querySelectorAll(".secao-tit").forEach(t=>{
+    if(t.getAttribute("onclick")===`toggleSecao('${id}')`)
+      t.classList.toggle("fechado", secoesFechadas.has(id));
+  });
+}
+
+// ---------- resumo da grade (o que existia vs o que acharam) ----------
+function blocoResumo(st){
+  const r=st.resumo;
+  if(!r||!r.total) return "";
+  return `<h3>Resumo do tabuleiro</h3>
+    <div class="resumo-grid">
+      <div><div class="n">${r.total}</div><div class="l">tinha</div></div>
+      <div><div class="n">${r.achadas}</div><div class="l">acharam</div></div>
+      <div><div class="n">${r.faltaram}</div><div class="l">faltaram</div></div>
+    </div>
+    <div class="maior-box">
+      <div class="l">Maior palavra do tabuleiro</div>
+      <div class="w">${esc(r.maior)}</div>
+    </div>`;
+}
+
+// ---------- log das últimas partidas ----------
+function blocoHistorico(st){
+  const h=(st.historico||[]).slice().reverse();
+  if(!h.length) return "";
+  const linhas=h.map(x=>{
+    const nome = st.config.modo==="times" ? `Time ${esc(x.vencedor)}` : esc(x.vencedor);
+    return `<div class="hist-linha">
+      <div class="hist-num">#${x.rodada}</div>
+      <div class="hist-venc">${nome}</div>
+      <div class="hist-pts">${x.pontos} pts</div>
+    </div>`;
+  }).join("");
+  return tituloSecao("hist","Últimas partidas")+corpoSecao("hist",linhas);
+}
+
+// ---------- todas as palavras do tabuleiro ----------
+function blocoTodasPalavras(st){
+  const r=st.resumo;
+  if(!r||!r.total) return "";
+  const achadas=(r.achadas_lista||[]).map(w=>
+    `<span class="chip">${esc(w)} ·${w.length}</span>`).join("");
+  const perdidas=(r.faltaram_lista||[]).map(w=>
+    `<span class="chip perdida">${esc(w)} ·${w.length}</span>`).join("");
+  const extra = r.faltaram > (r.faltaram_lista||[]).length
+    ? `<div class="aviso left">+${r.faltaram-(r.faltaram_lista||[]).length} outras não mostradas.</div>` : "";
+  const corpo=`
+    <div class="aviso left" style="margin-top:0">Encontradas pelo grupo (${r.achadas})</div>
+    <div class="chips" style="margin:8px 0 14px">${achadas||'<span class="aviso">Nenhuma.</span>'}</div>
+    <div class="aviso left">Que ninguém achou (${r.faltaram})</div>
+    <div class="chips" style="margin-top:8px">${perdidas||'<span class="aviso">Nenhuma — acharam tudo!</span>'}</div>
+    ${extra}`;
+  return tituloSecao("todas","Palavras do tabuleiro")+corpoSecao("todas",corpo);
+}
+
 function mostrarResultado(st){
   const np=st.config.n_partidas;
   $("res-rodada").textContent = np>1?`Fim da partida ${st.rodada} de ${np}`:"Fim da partida";
   $("meu-res").innerHTML=blocoMeuResultado(st);
 
-  const temSets=np>1;
+  // resumo do tabuleiro (tinha / acharam / faltaram + maior palavra)
+  const res=blocoResumo(st);
+  $("resumo-box").innerHTML=res;
+  $("resumo-box").classList.toggle("hidden",!res);
+
+  // placar de vitórias só faz sentido em melhor-de-3 ou mais
+  const temSets=np>=3;
   $("sets-box").classList.toggle("hidden",!temSets);
   if(temSets){
     const arr=Object.entries(st.vitorias).sort((a,b)=>b[1]-a[1]);
@@ -581,6 +710,14 @@ function mostrarResultado(st){
   const rk=blocoRanking(st);
   $("rank-box").innerHTML=rk;
   $("rank-box").classList.toggle("hidden",!rk);
+
+  const hb=blocoHistorico(st);
+  $("hist-box").innerHTML=hb;
+  $("hist-box").classList.toggle("hidden",!hb);
+
+  const tp=blocoTodasPalavras(st);
+  $("todas-box").innerHTML=tp;
+  $("todas-box").classList.toggle("hidden",!tp);
 }
 
 function mostrarFim(st){
@@ -592,20 +729,30 @@ function mostrarFim(st){
 
   $("fim-meu").innerHTML=blocoMeuResultado(st);
 
-  $("fim-sets").innerHTML=`<h3>Placar final (vitórias)</h3>`+
-    arr.map(([k,v],i)=>`<div class="plinha"><span class="nome">${medalha(i)} ${esc(k)}</span>
-      <span class="pts">${v} vitória(s)</span></div>`).join("");
+  const res=blocoResumo(st);
+  $("fim-resumo").innerHTML=res;
+  $("fim-resumo").classList.toggle("hidden",!res);
+
+  // placar de vitórias só em melhor-de-3 ou mais
+  const temSets=st.config.n_partidas>=3;
+  $("fim-sets").classList.toggle("hidden",!temSets);
+  if(temSets){
+    $("fim-sets").innerHTML=`<h3>Placar final (vitórias)</h3>`+
+      arr.map(([k,v],i)=>`<div class="plinha"><span class="nome">${medalha(i)} ${esc(k)}</span>
+        <span class="pts">${v} vitória(s)</span></div>`).join("");
+  }
 
   const rk=blocoRanking(st);
   $("fim-rank").innerHTML=rk;
   $("fim-rank").classList.toggle("hidden",!rk);
 
-  let h="<h3>Partidas</h3>";
-  (st.historico||[]).forEach(x=>{
-    const r=st.config.modo==="times"?`Time ${esc(x.vencedor)}`:esc(x.vencedor);
-    h+=`<div class="plinha"><span class="nome">Partida ${x.rodada}</span><span class="pts">${r}</span></div>`;
-  });
-  $("fim-placar").innerHTML=h;
+  const hb=blocoHistorico(st);
+  $("fim-placar").innerHTML=hb;
+  $("fim-placar").classList.toggle("hidden",!hb);
+
+  const tp=blocoTodasPalavras(st);
+  $("fim-todas").innerHTML=tp;
+  $("fim-todas").classList.toggle("hidden",!tp);
 }
 
 // ---------- tela de configurações ----------

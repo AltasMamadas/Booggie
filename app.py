@@ -24,6 +24,8 @@ def estado_inicial():
         },
         "grade": [],
         "grade_info": {},
+        "grade_palavras": [],
+        "resumo": {},
         "jogadores": {},           # nome -> {palavras:set, visto:ts, time:str|None}
         "inicio": 0,
         "fim": 0,
@@ -88,11 +90,38 @@ def _checar_fim():
             if dados["pontos"] > r["melhor"]:
                 r["melhor"] = dados["pontos"]
 
+        # resumo da grade: o que existia vs o que o grupo achou
+        todas = estado.get("grade_palavras", [])
+        achadas_grupo = set()
+        for j in estado["jogadores"].values():
+            achadas_grupo |= j["palavras"]
+        faltaram = [w for w in todas if w not in achadas_grupo]
+        estado["resumo"] = {
+            "total": len(todas),
+            "achadas": len([w for w in todas if w in achadas_grupo]),
+            "faltaram": len(faltaram),
+            "maior": todas[0] if todas else "",
+            "maior_achada": max(achadas_grupo, key=len) if achadas_grupo else "",
+            # amostra das que faltaram, priorizando as mais longas
+            "faltaram_lista": faltaram[:60],
+            "achadas_lista": sorted(achadas_grupo, key=lambda w: (-len(w), w)),
+        }
+
         # contabiliza vitória do set
         venc = _vencedor_da_partida()
         if venc is not None:
             estado["vitorias"][venc] = estado["vitorias"].get(venc, 0) + 1
-            estado["historico"].append({"rodada": estado["rodada"], "vencedor": venc})
+            if estado["config"]["modo"] == "times":
+                pontos_venc = estado["placar_times"].get(venc, 0)
+            else:
+                pontos_venc = estado["placar"].get(venc, {}).get("pontos", 0)
+            estado["historico"].append({
+                "rodada": estado["rodada"],
+                "vencedor": venc,
+                "pontos": pontos_venc,
+            })
+            # mantém só as últimas 5
+            estado["historico"] = estado["historico"][-5:]
 
         # fim de campeonato?
         if estado["rodada"] >= estado["config"]["n_partidas"]:
@@ -136,6 +165,14 @@ def config():
         if estado["fase"] not in ("lobby", "fim_campeonato"):
             return jsonify({"ok": False, "motivo": "so no lobby"})
         c = estado["config"]
+        # Recordes da sessão zeram quando o MODO DE JOGO muda (as partidas
+        # deixam de ser comparáveis). Entrar/sair jogador não zera nada.
+        muda_modo = (
+            ("modo" in data and data["modo"] != c["modo"])
+            or ("tamanho" in data and int(data["tamanho"]) != c["tamanho"])
+            or ("dificuldade" in data and data["dificuldade"] != c["dificuldade"])
+            or ("duracao" in data and int(data["duracao"]) != c["duracao"])
+        )
         if "tamanho" in data:
             c["tamanho"] = max(3, min(10, int(data["tamanho"])))
         if "dificuldade" in data and data["dificuldade"] in ("facil", "medio", "dificil"):
@@ -146,6 +183,10 @@ def config():
             c["modo"] = data["modo"]
         if "n_partidas" in data:
             c["n_partidas"] = max(1, min(15, int(data["n_partidas"])))
+        if muda_modo:
+            estado["ranking"] = {}
+            estado["historico"] = []
+            estado["vitorias"] = {}
     return jsonify({"ok": True, "config": estado["config"]})
 
 
@@ -180,6 +221,9 @@ def iniciar():
         )
         estado["grade"] = grade
         estado["grade_info"] = {"palavras": qtd_palavras, "maior": maior}
+        # todas as palavras que existem nesta grade (usado no fim da partida)
+        todas = gc.palavras_da_grade(grade)
+        estado["grade_palavras"] = sorted(todas, key=lambda w: (-len(w), w))
         estado["inicio"] = time.time()
         estado["fim"] = estado["inicio"] + estado["config"]["duracao"]
         estado["rodada"] += 1
@@ -281,7 +325,9 @@ def get_estado():
             "config": estado["config"],
             "rodada": estado["rodada"],
             "grade": estado["grade"] if estado["fase"] == "jogando" else [],
-            "grade_info": estado["grade_info"] if estado["fase"] == "jogando" else {},
+            # a contagem NÃO é exposta durante a partida (spoiler);
+            # só sai no resumo, depois que o tempo acaba.
+            "resumo": estado["resumo"] if estado["fase"] in ("resultado", "fim_campeonato") else {},
             "restante": restante,
             "jogadores": jogadores_info,
             "minhas_palavras": minhas,

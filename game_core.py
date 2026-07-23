@@ -110,6 +110,11 @@ def gerar_grade(n=4, candidatas=30, dificuldade="medio"):
     return melhor[0], melhor[1], melhor[2]
 
 
+def palavras_da_grade(grade, n=None):
+    """Todas as palavras encontráveis na grade (usa a trie atual)."""
+    return _solver.listar_palavras(grade, _TRIE, n)
+
+
 def _vizinhos(a, b, n):
     ra, ca = divmod(a, n)
     rb, cb = divmod(b, n)

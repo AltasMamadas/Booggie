@@ -13,12 +13,37 @@ const Audio2 = (() => {
   let mp3El = null;          // <audio> quando o usuário carrega o próprio
   let usandoMp3 = false;
 
+  let acelerado = false;   // últimos 30s: +20% de andamento e pitch mais alto
+
   const cfg = {
     musicaOn: true,
     sfxOn: true,
     volMusica: 0.35,
     volSfx: 0.5,
   };
+
+  function setAcelerado(on) {
+    if (acelerado === on) return;
+    acelerado = on;
+    if (mp3El) {
+      // .mp3 do usuário: preserveMusic=false deixa o pitch subir junto
+      try {
+        mp3El.preservesPitch = false;
+        mp3El.mozPreservesPitch = false;
+        mp3El.webkitPreservesPitch = false;
+        mp3El.playbackRate = on ? 1.2 : 1.0;
+      } catch (e) {}
+    }
+    // trilhas internas: o próximo ciclo já entra no ritmo novo
+    if (tocando && !usandoMp3) {
+      if (loopTimer) { clearTimeout(loopTimer); loopTimer = null; }
+      cicloTrilha();
+    }
+  }
+
+  const FATOR = () => (acelerado ? 1 / 1.2 : 1);       // andamento (dur menor = mais rápido)
+  const PITCH = () => (acelerado ? Math.pow(2, 2 / 12) : 1);  // +2 semitons
+
 
   function init() {
     if (ctx) return;
@@ -71,14 +96,16 @@ const Audio2 = (() => {
   }
 
   // frequência de uma nota MIDI
-  const f = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  const fBase = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // música: sobe o tom nos últimos 30s. Efeitos usam fBase (não mudam).
+  const f = (m) => fBase(m) * PITCH();
 
   /* ---------- 3 trilhas originais ----------
      Cada uma retorna a duração do ciclo, e agenda as notas a partir de t0. */
 
   // 1) "Passeio" — leve, dedilhado, maior
   function trilhaPasseio(t0) {
-    const bpm = 96, b = 60 / bpm;
+    const bpm = 96, b = (60 / bpm) * FATOR();
     const acordes = [
       [60, 64, 67], [57, 60, 64], [65, 69, 72], [55, 59, 62],
     ];
@@ -99,7 +126,7 @@ const Audio2 = (() => {
 
   // 2) "Relógio" — pulsante, tensa, menor (boa pros últimos segundos)
   function trilhaRelogio(t0) {
-    const bpm = 112, b = 60 / bpm;
+    const bpm = 112, b = (60 / bpm) * FATOR();
     const base = [57, 57, 60, 55];
     base.forEach((raiz, i) => {
       const t = t0 + i * b * 4;
@@ -115,7 +142,7 @@ const Audio2 = (() => {
 
   // 3) "Bosque" — ambiente calmo, notas espaçadas
   function trilhaBosque(t0) {
-    const b = 0.75;
+    const b = 0.75 * FATOR();
     const esc = [60, 62, 65, 67, 69, 72, 74];
     for (let i = 0; i < 16; i++) {
       const t = t0 + i * b;
@@ -136,6 +163,14 @@ const Audio2 = (() => {
   function nomesTrilhas() { return TRILHAS.map(t => t.nome); }
 
   // ---------- controle de música ----------
+  // loop da trilha interna, extraído pra poder ser reagendado quando
+  // a música acelera nos últimos 30s.
+  function cicloTrilha() {
+    if (!tocando || !ctx || usandoMp3) return;
+    const dur = TRILHAS[trilhaAtual].fn(ctx.currentTime + 0.05);
+    loopTimer = setTimeout(cicloTrilha, dur * 1000 - 80);
+  }
+
   function tocarMusica(indice) {
     destravar();
     if (!cfg.musicaOn) return;
@@ -143,6 +178,10 @@ const Audio2 = (() => {
     if (usandoMp3 && mp3El) {
       mp3El.volume = cfg.volMusica;
       mp3El.loop = true;
+      try {
+        mp3El.preservesPitch = false;
+        mp3El.playbackRate = acelerado ? 1.2 : 1.0;
+      } catch (e) {}
       mp3El.play().catch(() => {});
       tocando = true;
       return;
@@ -150,18 +189,16 @@ const Audio2 = (() => {
     if (!ctx) return;
     trilhaAtual = (indice != null) ? indice : trilhaAtual;
     tocando = true;
-    const agenda = () => {
-      if (!tocando || !ctx) return;
-      const dur = TRILHAS[trilhaAtual].fn(ctx.currentTime + 0.05);
-      loopTimer = setTimeout(agenda, dur * 1000 - 80);
-    };
-    agenda();
+    cicloTrilha();
   }
 
   function pararMusica() {
     tocando = false;
+    acelerado = false;   // próxima partida começa no ritmo normal
     if (loopTimer) { clearTimeout(loopTimer); loopTimer = null; }
-    if (mp3El) { try { mp3El.pause(); } catch (e) {} }
+    if (mp3El) {
+      try { mp3El.playbackRate = 1.0; mp3El.pause(); } catch (e) {}
+    }
   }
 
   function carregarMp3(file) {
@@ -184,26 +221,26 @@ const Audio2 = (() => {
     if (!ctx) return;
     const t = ctx.currentTime;
     if (tipo === "select") {
-      nota(f(72), t, 0.07, "sine", 0.16, sfxGain);
+      nota(fBase(72), t, 0.07, "sine", 0.16, sfxGain);
     } else if (tipo === "valida") {
       [72, 76, 79].forEach((n, i) =>
-        nota(f(n), t + i * 0.05, 0.18, "sine", 0.16, sfxGain));
+        nota(fBase(n), t + i * 0.05, 0.18, "sine", 0.16, sfxGain));
     } else if (tipo === "invalida") {
-      nota(f(55), t, 0.16, "sawtooth", 0.10, sfxGain);
-      nota(f(52), t + 0.07, 0.18, "sawtooth", 0.09, sfxGain);
+      nota(fBase(55), t, 0.16, "sawtooth", 0.10, sfxGain);
+      nota(fBase(52), t + 0.07, 0.18, "sawtooth", 0.09, sfxGain);
     } else if (tipo === "repetida") {
-      nota(f(64), t, 0.10, "triangle", 0.10, sfxGain);
+      nota(fBase(64), t, 0.10, "triangle", 0.10, sfxGain);
     } else if (tipo === "inicio") {
       [60, 64, 67, 72].forEach((n, i) =>
-        nota(f(n), t + i * 0.09, 0.3, "triangle", 0.16, sfxGain));
+        nota(fBase(n), t + i * 0.09, 0.3, "triangle", 0.16, sfxGain));
     } else if (tipo === "fim") {
       [72, 67, 64, 60].forEach((n, i) =>
-        nota(f(n), t + i * 0.12, 0.45, "sine", 0.18, sfxGain));
+        nota(fBase(n), t + i * 0.12, 0.45, "sine", 0.18, sfxGain));
     } else if (tipo === "tique") {
       ruido(t, 0.04, 0.10);
     } else if (tipo === "vitoria") {
       [60, 64, 67, 72, 76].forEach((n, i) =>
-        nota(f(n), t + i * 0.1, 0.5, "triangle", 0.17, sfxGain));
+        nota(fBase(n), t + i * 0.1, 0.5, "triangle", 0.17, sfxGain));
     }
   }
 
@@ -228,6 +265,7 @@ const Audio2 = (() => {
     destravar, tocarMusica, pararMusica, sfx,
     setMusica, setSfx, setVolMusica, setVolSfx,
     nomesTrilhas, usarTrilhaInterna, carregarMp3, estaTocando,
+    setAcelerado,
     cfg,
   };
 })();
