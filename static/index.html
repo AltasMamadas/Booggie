@@ -60,7 +60,7 @@
 <div class="wrap">
   <div class="logo">BOGGLE</div>
   <div class="sub">jogo local · mesma grade pra todos</div>
- 
+
   <!-- LOGIN -->
   <div id="tela-login">
     <div class="card">
@@ -68,14 +68,14 @@
       <button onclick="entrar()">Entrar na sala</button>
     </div>
   </div>
- 
+
   <!-- LOBBY -->
   <div id="tela-lobby" class="hidden">
     <div class="card">
       <b>Na sala (<span id="qtd">0</span>)</b>
       <div class="lista-j" id="lista-j"></div>
     </div>
- 
+
     <div class="card">
       <h3 style="margin-top:0">Configuração</h3>
       <div class="cfg-linha">
@@ -124,11 +124,11 @@
         <div class="aviso">Jogadores com o mesmo nome de time jogam juntos.</div>
       </div>
     </div>
- 
+
     <button onclick="iniciar()">Iniciar <span id="lbl-inicio">partida</span></button>
     <div class="aviso">Qualquer um pode configurar e iniciar.</div>
   </div>
- 
+
   <!-- JOGO -->
   <div id="tela-jogo" class="hidden">
     <div class="rodada-tag" id="rodada-tag"></div>
@@ -141,7 +141,7 @@
     <div id="msg">Arraste pra conectar letras</div>
     <div class="chips" id="found"></div>
   </div>
- 
+
   <!-- RESULTADO DE PARTIDA -->
   <div id="tela-resultado" class="hidden">
     <div class="rodada-tag" id="res-rodada"></div>
@@ -151,7 +151,7 @@
     <button onclick="iniciar()">Próxima partida</button>
     <button class="sec" onclick="voltarLobby()">Encerrar e voltar ao lobby</button>
   </div>
- 
+
   <!-- FIM DE CAMPEONATO -->
   <div id="tela-fim" class="hidden">
     <div class="venc" id="fim-venc"></div>
@@ -161,24 +161,24 @@
     <button class="sec" onclick="voltarLobby()">Voltar ao lobby</button>
   </div>
 </div>
- 
+
 <script>
 let NOME=null, faseAtual=null, rodadaAtual=-1, cfgModo="individual";
 let letters=[], path=[], cells=[], down=false, N=4;
 let pollTimer=null;
- 
+
 function $(id){return document.getElementById(id);}
 function show(t){["login","lobby","jogo","resultado","fim"].forEach(x=>
   $("tela-"+x).classList.toggle("hidden", x!==t));}
 function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
- 
+
 async function api(url,body){
   try{
     const opt=body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{};
     const r=await fetch(url,opt); return await r.json();
   }catch(e){ return null; }
 }
- 
+
 async function entrar(){
   const n=$("nome").value.trim(); if(!n)return;
   const r=await api("/api/entrar",{nome:n});
@@ -204,7 +204,7 @@ async function salvarTime(){
 }
 async function iniciar(){ await api("/api/iniciar",{}); }
 async function voltarLobby(){ await api("/api/nova",{}); }
- 
+
 function iniciarPoll(){
   if(pollTimer)clearInterval(pollTimer);
   poll(); pollTimer=setInterval(poll,1500);
@@ -213,7 +213,7 @@ async function poll(){
   const st=await api("/api/estado?nome="+encodeURIComponent(NOME));
   if(!st)return; aplicarEstado(st);
 }
- 
+
 function aplicarEstado(st){
   cfgModo = st.config.modo;
   if(st.fase!==faseAtual || st.rodada!==rodadaAtual){
@@ -237,12 +237,14 @@ function aplicarEstado(st){
     sincronizarPalavras(st.minhas_palavras);
   }
 }
- 
+
 function mostrarRodada(st){
   const np=st.config.n_partidas;
-  $("rodada-tag").textContent = np>1 ? `Partida ${st.rodada} de ${np}` : "";
+  const info = st.grade_info && st.grade_info.palavras
+    ? ` · ${st.grade_info.palavras} palavras possíveis` : "";
+  $("rodada-tag").textContent = (np>1 ? `Partida ${st.rodada} de ${np}` : "Partida") + info;
 }
- 
+
 // ---- tabuleiro NxN ----
 function montarGrade(grade){
   N=Math.round(Math.sqrt(grade.length));
@@ -275,7 +277,7 @@ function addCell(i){
 }
 function idxAt(x,y){const el=document.elementFromPoint(x,y);
   return (el&&el.classList.contains("cell"))?+el.dataset.i:-1;}
- 
+
 async function finalizar(){
   if(path.length>=3){
     const r=await api("/api/submeter",{nome:NOME,caminho:path});
@@ -287,14 +289,14 @@ async function finalizar(){
   path=[]; hl();
 }
 function msg(t,c){$("msg").textContent=t; $("msg").style.color=c||"#7a6b55";}
- 
+
 // prévia local (o placar real, com dobro/exclusiva, sai no fim)
 function sincronizarPalavras(lista){
   $("found").innerHTML=lista.map(w=>`<span class="chip">${esc(w)}</span>`).join("");
   let s=0; for(const w of lista) s += w.length;  // prévia = soma base
   $("score").textContent=s;
 }
- 
+
 document.addEventListener("pointerdown",e=>{
   if(faseAtual!=="jogando")return;
   const el=e.target.closest(".cell"); if(!el)return;
@@ -305,7 +307,7 @@ document.addEventListener("pointermove",e=>{
   const i=idxAt(e.clientX,e.clientY); if(i>=0)addCell(i);
 });
 document.addEventListener("pointerup",()=>{ if(down){down=false; finalizar();} });
- 
+
 // ---- resultado de partida ----
 function ordenarIndividual(placar){
   return Object.entries(placar).map(([nome,d])=>({nome,...d}))
@@ -331,7 +333,7 @@ function blocoSets(vitorias, modo){
 function timesDosJogadores(st){
   const m={}; (st.jogadores||[]).forEach(j=>m[j.nome]=j.time); return m;
 }
- 
+
 function mostrarResultado(st){
   const np=st.config.n_partidas;
   $("res-rodada").textContent = np>1 ? `Fim da partida ${st.rodada} de ${np}` : "";
@@ -356,7 +358,7 @@ function mostrarResultado(st){
   html += blocoPlacarIndividual(st.placar, timesDosJogadores(st));
   $("placar").innerHTML=html;
 }
- 
+
 function mostrarFim(st){
   const arr=Object.entries(st.vitorias).sort((a,b)=>b[1]-a[1]);
   if(arr.length){
@@ -377,4 +379,3 @@ function mostrarFim(st){
 </script>
 </body>
 </html>
- 

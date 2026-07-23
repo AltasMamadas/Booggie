@@ -7,11 +7,11 @@ import time
 import threading
 from flask import Flask, request, jsonify, send_from_directory
 import game_core as gc
- 
+
 app = Flask(__name__, static_folder="static")
- 
+
 LOCK = threading.Lock()
- 
+
 def estado_inicial():
     return {
         "fase": "lobby",           # lobby | jogando | resultado | fim_campeonato
@@ -22,6 +22,7 @@ def estado_inicial():
             "n_partidas": 1,       # campeonato: quantas partidas
         },
         "grade": [],
+        "grade_info": {},
         "jogadores": {},           # nome -> {palavras:set, visto:ts, time:str|None}
         "inicio": 0,
         "fim": 0,
@@ -31,10 +32,10 @@ def estado_inicial():
         "vitorias": {},            # acumulado de sets: nome(ou time) -> nº vitórias
         "historico": [],           # [{rodada, vencedor}]
     }
- 
+
 estado = estado_inicial()
- 
- 
+
+
 def _reset_para_lobby(full=False):
     estado["fase"] = "lobby"
     estado["grade"] = []
@@ -48,8 +49,8 @@ def _reset_para_lobby(full=False):
         estado["rodada"] = 0
         estado["vitorias"] = {}
         estado["historico"] = []
- 
- 
+
+
 def _vencedor_da_partida():
     """Retorna o nome (individual) ou time (modo times) que venceu a partida atual."""
     if estado["config"]["modo"] == "times":
@@ -60,8 +61,8 @@ def _vencedor_da_partida():
         if not estado["placar"]:
             return None
         return max(estado["placar"].items(), key=lambda kv: kv[1]["pontos"])[0]
- 
- 
+
+
 def _checar_fim():
     if estado["fase"] == "jogando" and time.time() >= estado["fim"]:
         jogadores = {n: j["palavras"] for n, j in estado["jogadores"].items()}
@@ -73,20 +74,20 @@ def _checar_fim():
         else:
             estado["placar"] = gc.resolver_placar(jogadores)
             estado["placar_times"] = {}
- 
+
         # contabiliza vitória do set
         venc = _vencedor_da_partida()
         if venc is not None:
             estado["vitorias"][venc] = estado["vitorias"].get(venc, 0) + 1
             estado["historico"].append({"rodada": estado["rodada"], "vencedor": venc})
- 
+
         # fim de campeonato?
         if estado["rodada"] >= estado["config"]["n_partidas"]:
             estado["fase"] = "fim_campeonato"
         else:
             estado["fase"] = "resultado"
- 
- 
+
+
 def _limpar_ausentes():
     if estado["fase"] != "lobby":
         return
@@ -94,13 +95,13 @@ def _limpar_ausentes():
     fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > 30]
     for n in fora:
         del estado["jogadores"][n]
- 
- 
+
+
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
- 
- 
+
+
 @app.route("/api/entrar", methods=["POST"])
 def entrar():
     nome = (request.json or {}).get("nome", "").strip()[:16]
@@ -112,8 +113,8 @@ def entrar():
         else:
             estado["jogadores"][nome]["visto"] = time.time()
     return jsonify({"ok": True, "nome": nome})
- 
- 
+
+
 @app.route("/api/config", methods=["POST"])
 def config():
     """Atualiza config da sala (só no lobby)."""
@@ -131,8 +132,8 @@ def config():
         if "n_partidas" in data:
             c["n_partidas"] = max(1, min(15, int(data["n_partidas"])))
     return jsonify({"ok": True, "config": estado["config"]})
- 
- 
+
+
 @app.route("/api/time", methods=["POST"])
 def set_time():
     """Define o time de um jogador (só no lobby)."""
@@ -143,8 +144,8 @@ def set_time():
         if nome in estado["jogadores"]:
             estado["jogadores"][nome]["time"] = t
     return jsonify({"ok": True})
- 
- 
+
+
 @app.route("/api/iniciar", methods=["POST"])
 def iniciar():
     with LOCK:
@@ -158,7 +159,9 @@ def iniciar():
                 estado["vitorias"] = {}
                 estado["historico"] = []
         estado["fase"] = "jogando"
-        estado["grade"] = gc.gerar_grade(estado["config"]["tamanho"])
+        grade, qtd_palavras, maior = gc.gerar_grade(estado["config"]["tamanho"])
+        estado["grade"] = grade
+        estado["grade_info"] = {"palavras": qtd_palavras, "maior": maior}
         estado["inicio"] = time.time()
         estado["fim"] = estado["inicio"] + estado["config"]["duracao"]
         estado["rodada"] += 1
@@ -167,15 +170,15 @@ def iniciar():
         estado["placar"] = {}
         estado["placar_times"] = {}
     return jsonify({"ok": True})
- 
- 
+
+
 @app.route("/api/nova", methods=["POST"])
 def nova():
     with LOCK:
         _reset_para_lobby(full=True)
     return jsonify({"ok": True})
- 
- 
+
+
 @app.route("/api/submeter", methods=["POST"])
 def submeter():
     data = request.json or {}
@@ -193,8 +196,8 @@ def submeter():
         estado["jogadores"][nome]["palavras"].add(w)
         estado["jogadores"][nome]["visto"] = time.time()
         return jsonify({"ok": True, "palavra": w, "base": gc.pontos_base(w), "repetida": ja})
- 
- 
+
+
 @app.route("/api/estado")
 def get_estado():
     nome = request.args.get("nome", "")
@@ -203,24 +206,25 @@ def get_estado():
             estado["jogadores"][nome]["visto"] = time.time()
         _checar_fim()
         _limpar_ausentes()
- 
+
         restante = 0
         if estado["fase"] == "jogando":
             restante = max(0, int(estado["fim"] - time.time()))
- 
+
         minhas = []
         if nome in estado["jogadores"]:
             minhas = sorted(estado["jogadores"][nome]["palavras"])
- 
+
         jogadores_info = [
             {"nome": n, "time": j["time"]} for n, j in estado["jogadores"].items()
         ]
- 
+
         return jsonify({
             "fase": estado["fase"],
             "config": estado["config"],
             "rodada": estado["rodada"],
             "grade": estado["grade"] if estado["fase"] == "jogando" else [],
+            "grade_info": estado["grade_info"] if estado["fase"] == "jogando" else {},
             "restante": restante,
             "jogadores": jogadores_info,
             "minhas_palavras": minhas,
@@ -229,10 +233,9 @@ def get_estado():
             "vitorias": estado["vitorias"],
             "historico": estado["historico"],
         })
- 
- 
+
+
 if __name__ == "__main__":
     import os
     porta = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=porta, debug=False)
- 
