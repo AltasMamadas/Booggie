@@ -748,7 +748,10 @@ function aplicarEstado(st){
   if(st.fase!==faseAtual || st.rodada!==rodadaAtual){
     const eraJogando = faseAtual==="jogando";
     faseAtual=st.fase; rodadaAtual=st.rodada;
-    if($("tela-config").classList.contains("hidden")){
+    const telaSecundaria = !$("tela-config").classList.contains("hidden") ||
+                           !$("tela-stats").classList.contains("hidden") ||
+                           !$("tela-leaderboard").classList.contains("hidden");
+    if(!telaSecundaria){
       if(st.fase==="lobby"){ Audio2.pararMusica(); show("lobby"); }
       else if(st.fase==="jogando"){
         montarGrade(st.grade, st.linhas, st.colunas);
@@ -770,7 +773,8 @@ function aplicarEstado(st){
     $("qtd").textContent=st.jogadores.length;
     $("lista-j").innerHTML=st.jogadores.map(j=>{
       const tt=j.time?` <span class="time-badge">${esc(j.time)}</span>`:"";
-      return `<span class="badge">${esc(j.nome)}${tt}</span>`;
+      const host=j.nome===st.host?' <span class="time-badge">host</span>':"";
+      return `<span class="badge">${esc(j.nome)}${host}${tt}</span>`;
     }).join("");
   }
   if(st.fase==="jogando"){
@@ -1315,8 +1319,7 @@ const LB_CATS=[
 async function abrirLeaderboard(){
   show("leaderboard");
   mudarAbaLb(lbAba);
-  if(!lbDados) await carregarLeaderboard();
-  else renderizarLb();
+  await carregarLeaderboard();
 }
 function fecharLeaderboard(){ show(NOME?"lobby":"login"); }
 async function carregarLeaderboard(){
