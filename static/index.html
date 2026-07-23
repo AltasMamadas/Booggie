@@ -90,6 +90,123 @@
   .switch label{font-size:14px;}
   input[type=checkbox]{width:auto;margin:0;transform:scale(1.3);}
   input[type=range]{width:100%;margin:0;padding:0;}
+  /* ============ ANIMAÇÕES ============ */
+  /* entrada das células ao montar o tabuleiro (cascata) */
+  @keyframes entraCelula{
+    0%  {opacity:0; transform:scale(.4) translateY(-14px);}
+    60% {opacity:1; transform:scale(1.08) translateY(0);}
+    100%{opacity:1; transform:scale(1);}
+  }
+  .cell.entrando{animation:entraCelula .42s cubic-bezier(.34,1.56,.64,1) backwards;}
+
+  /* célula nova que surge quando o tabuleiro CRESCE (lenta, dá pra acompanhar) */
+  @keyframes surgeCelula{
+    0%  {opacity:0; transform:scale(.25) rotate(-12deg); background:#F2D479;}
+    45% {opacity:1; transform:scale(1.15) rotate(4deg);  background:#F2D479;}
+    75% {transform:scale(.97) rotate(0deg); background:#F7E6AE;}
+    100%{opacity:1; transform:scale(1); background:var(--creme);}
+  }
+  .cell.nova{animation:surgeCelula 1.1s cubic-bezier(.34,1.4,.64,1) backwards;}
+
+  /* letra selecionada: leve pulo */
+  @keyframes pulaSelecao{
+    0%{transform:scale(1);} 45%{transform:scale(1.14);} 100%{transform:scale(1.06);}
+  }
+  .cell.on{animation:pulaSelecao .16s ease-out;}
+
+  /* palavra aceita: tabuleiro dá um "flash" verde suave */
+  @keyframes flashOk{
+    0%{box-shadow:0 0 0 0 rgba(59,109,17,.55);}
+    100%{box-shadow:0 0 0 16px rgba(59,109,17,0);}
+  }
+  #board.ok{animation:flashOk .5s ease-out;}
+  /* palavra recusada: tremida curta */
+  @keyframes treme{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-7px);} 40%{transform:translateX(6px);}
+    60%{transform:translateX(-4px);} 80%{transform:translateX(3px);}
+  }
+  #board.erro{animation:treme .34s ease-in-out;}
+
+  /* palavra nova entrando na lista */
+  @keyframes entraChip{
+    0%{opacity:0; transform:translateY(-8px) scale(.85);}
+    100%{opacity:1; transform:translateY(0) scale(1);}
+  }
+  .chip.novo{animation:entraChip .3s ease-out;}
+
+  /* texto da palavra sendo formada: pulsa a cada letra */
+  @keyframes pulsaAtual{0%{transform:scale(1.12);}100%{transform:scale(1);}}
+  #current.cresceu{animation:pulsaAtual .14s ease-out;}
+
+  /* relógio pulsando quando o tempo aperta */
+  @keyframes pulsaTempo{0%,100%{transform:scale(1);}50%{transform:scale(1.16);}}
+  #timer.urgente{animation:pulsaTempo 1s ease-in-out infinite;}
+
+  /* ganho de tempo no sobrevivência: sobe e some */
+  @keyframes sobeSome{
+    0%  {opacity:0; transform:translateY(6px) scale(.8);}
+    25% {opacity:1; transform:translateY(-4px) scale(1.1);}
+    100%{opacity:0; transform:translateY(-26px) scale(1);}
+  }
+  .ganho-tempo{position:absolute;right:6px;top:22px;font-weight:700;
+    color:var(--verde);font-size:17px;pointer-events:none;
+    animation:sobeSome 1.15s ease-out forwards;}
+  .stats{position:relative;}
+
+  /* faixa de aviso deslizando */
+  @keyframes desceFaixa{
+    0%{opacity:0; transform:translateY(-14px);}
+    100%{opacity:1; transform:translateY(0);}
+  }
+  .faixa-aviso{animation:desceFaixa .35s ease-out;}
+
+  /* barra de progresso com brilho ao avançar */
+  @keyframes brilhoProg{
+    0%{filter:brightness(1);} 40%{filter:brightness(1.5);} 100%{filter:brightness(1);}
+  }
+  .prog-fill.subiu{animation:brilhoProg .55s ease-out;}
+
+  /* telas entrando */
+  @keyframes entraTela{
+    0%{opacity:0; transform:translateY(10px);}
+    100%{opacity:1; transform:translateY(0);}
+  }
+  #tela-jogo:not(.hidden), #tela-resultado:not(.hidden),
+  #tela-fim:not(.hidden), #tela-lobby:not(.hidden){animation:entraTela .3s ease-out;}
+
+  /* pontuação final "contando" */
+  @keyframes surgePontos{
+    0%{opacity:0; transform:scale(.5);}
+    70%{transform:scale(1.12);}
+    100%{opacity:1; transform:scale(1);}
+  }
+  .meu-resultado .pts-grande{animation:surgePontos .5s cubic-bezier(.34,1.5,.64,1);}
+
+  /* medalha do vencedor */
+  @keyframes balanca{
+    0%,100%{transform:rotate(0);} 25%{transform:rotate(-9deg);} 75%{transform:rotate(9deg);}
+  }
+  .venc{animation:balanca .8s ease-in-out;}
+
+  /* dica revelada */
+  @keyframes revelaDica{
+    0%{opacity:0; letter-spacing:12px;}
+    100%{opacity:1; letter-spacing:2px;}
+  }
+  .dica-txt.revelou{animation:revelaDica .45s ease-out;}
+
+  /* jogador eliminado no sobrevivência */
+  @keyframes saiJogador{
+    0%{opacity:1;} 100%{opacity:.45;}
+  }
+  .surv-linha.morto{animation:saiJogador .5s ease-out;}
+
+  /* respeita quem prefere menos movimento */
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.01ms!important; animation-iteration-count:1!important;}
+  }
+
   /* aviso de embaralhamento: peças piscando em amarelo */
   @keyframes piscaAmarelo{
     0%,100%{background:var(--creme);border-color:var(--borda);}
@@ -154,7 +271,7 @@
 <div class="wrap">
   <div class="cabecalho">
     <div class="logo">BOGGLE</div>
-    <button class="btn-cfg" onclick="abrirConfig()" title="Configurações">⚙️</button>
+    <button class="btn-cfg" id="btn-cfg" onclick="abrirConfig()" title="Configurações">⚙️</button>
   </div>
 
   <!-- LOGIN -->
@@ -233,8 +350,9 @@
       <div class="aviso left" id="dif-desc">Médio: equilíbrio entre quantidade e desafio.</div>
     </div>
 
-    <button onclick="iniciar()">Iniciar <span id="lbl-inicio">partida</span></button>
-    <div class="aviso">Qualquer um pode configurar e iniciar. Vale pra todos.</div>
+    <button id="btn-iniciar" onclick="iniciar()">Iniciar <span id="lbl-inicio">partida</span></button>
+    <div class="aviso" id="aviso-host">Só o host configura e inicia a partida.</div>
+    <button class="sec mini" style="margin-top:10px" onclick="sairDaSala()">Sair da sala</button>
   </div>
 
   <!-- JOGO -->
@@ -258,6 +376,10 @@
     <div id="msg">Arraste pra conectar letras</div>
     <div id="surv-box" class="card hidden" style="padding:12px"></div>
     <div class="chips" id="found"></div>
+    <div class="row2" style="margin-top:16px">
+      <button class="sec mini" onclick="sairDaSala()">Sair da sala</button>
+      <button class="mini hidden" id="btn-encerrar" onclick="encerrarPartida()">Encerrar partida</button>
+    </div>
   </div>
 
   <!-- RESULTADO DE PARTIDA -->
@@ -361,7 +483,8 @@ let pollTimer=null, telaAnterior="login", ultimoEstado=null;
 let difSel="medio", avisou30=false;
 // dicas: só liberam após 6s sem achar palavra nova
 let ultimaAchada=0, ultimoEmbaralho=0, dicaTimer=null;
-const DICA_ESPERA=6000;
+let souHost=false, ultimoCresceu=0, ultimoProg=0;
+const DICA_ESPERA=10000;
 
 function $(id){return document.getElementById(id);}
 function show(t){["login","lobby","jogo","resultado","fim","config"].forEach(x=>
@@ -384,7 +507,9 @@ async function entrar(){
 
 // ---------- configurações de jogo ----------
 async function salvarConfig(){
+  if(!souHost) return;
   await api("/api/config",{
+    nome:NOME,
     tamanho:+$("cfg-tamanho").value,
     duracao:+$("cfg-duracao").value,
     modo:$("cfg-modo").value,
@@ -429,8 +554,28 @@ function atualizarUIConfig(){
   $("lbl-inicio").textContent = (+$("cfg-partidas").value)>1 ? "campeonato" : "partida";
 }
 async function salvarTime(){ await api("/api/time",{nome:NOME,time:$("cfg-time").value}); }
-async function iniciar(){ Audio2.destravar(); await api("/api/iniciar",{}); }
-async function voltarLobby(){ await api("/api/nova",{}); }
+async function iniciar(){
+  if(!souHost) return;
+  Audio2.destravar();
+  await api("/api/iniciar",{nome:NOME});
+}
+async function voltarLobby(){
+  if(!souHost) return;
+  await api("/api/nova",{nome:NOME});
+}
+async function sairDaSala(){
+  if(!confirm("Sair da sala?")) return;
+  await api("/api/sair",{nome:NOME});
+  if(pollTimer) clearInterval(pollTimer);
+  NOME=null; souHost=false; faseAtual=null; rodadaAtual=-1;
+  Audio2.pararMusica();
+  show("login");
+}
+async function encerrarPartida(){
+  if(!souHost) return;
+  if(!confirm("Encerrar a partida para todos?")) return;
+  await api("/api/nova",{nome:NOME});
+}
 
 // ---------- polling ----------
 function iniciarPoll(){
@@ -443,6 +588,15 @@ async function poll(){
 }
 
 function aplicarEstado(st){
+  souHost = !!st.sou_host;
+
+  // botão de configurações some durante a partida
+  $("btn-cfg").classList.toggle("hidden", st.fase==="jogando");
+
+  // botão de encerrar: só o host, e só durante a partida
+  const be=$("btn-encerrar");
+  if(be) be.classList.toggle("hidden", !(souHost && st.fase==="jogando"));
+
   // sincroniza os controles com a config da sala (outro jogador pode ter mudado)
   if(st.fase==="lobby"){
     $("cfg-tamanho").value=st.config.tamanho;
@@ -455,6 +609,21 @@ function aplicarEstado(st){
         el.classList.toggle("sel", el.dataset.d===difSel));
     }
     atualizarUIConfig();
+
+    // só o host mexe na configuração
+    ["cfg-tamanho","cfg-duracao","cfg-modo","cfg-partidas"].forEach(id=>{
+      const el=$(id); if(el) el.disabled=!souHost;
+    });
+    document.querySelectorAll(".dif-op").forEach(el=>{
+      el.style.opacity = souHost ? "1" : ".5";
+      el.style.pointerEvents = souHost ? "auto" : "none";
+    });
+    const bi=$("btn-iniciar");
+    if(bi){ bi.disabled=!souHost; bi.style.opacity=souHost?"1":".5"; }
+    const av=$("aviso-host");
+    if(av) av.textContent = souHost
+      ? "Você é o host: configure e inicie quando todos estiverem prontos."
+      : `Aguardando o host (${esc(st.host||"—")}) iniciar a partida.`;
   }
 
   if(st.fase!==faseAtual || st.rodada!==rodadaAtual){
@@ -493,10 +662,11 @@ function aplicarEstado(st){
     const mudouLetras = st.grade.length===letters.length &&
                         st.grade.some((L,i)=>L!==letters[i]);
     if(mudouDim){
-      montarGrade(st.grade, st.linhas, st.colunas);
-      faixaAviso("Tabuleiro aumentou!");
+      // cresce preservando as letras existentes; só as novas "surgem", devagar
+      crescerGrade(st.grade, st.linhas, st.colunas, st.celulas_novas||[]);
+      faixaAviso("⬆️ O tabuleiro cresceu!");
       Audio2.sfx("inicio");
-      setTimeout(()=>faixaAviso(null), 3000);
+      setTimeout(()=>faixaAviso(null), 4000);
     } else if(mudouLetras){
       atualizarLetras(st.grade);
     }
@@ -525,6 +695,7 @@ function aplicarEstado(st){
       const m=st.restante/60|0, s=String(st.restante%60).padStart(2,"0");
       $("timer").textContent=m+":"+s;
       $("timer").style.color = st.restante<=30 ? "var(--vermelho)" : "";
+      $("timer").classList.toggle("urgente", st.restante<=15 && st.restante>0);
       if(st.restante<=30 && st.restante>0){
         if(!avisou30){ avisou30=true; Audio2.sfx("tique"); }
         Audio2.setAcelerado(true);
@@ -541,7 +712,12 @@ function aplicarEstado(st){
     if(temProg){
       const {achadas,total}=st.progresso;
       $("prog-num").textContent=`${achadas}/${total}`;
-      $("prog-fill").style.width = total ? (achadas/total*100)+"%" : "0%";
+      const fill=$("prog-fill");
+      fill.style.width = total ? (achadas/total*100)+"%" : "0%";
+      if(achadas>ultimoProg){
+        fill.classList.remove("subiu"); void fill.offsetWidth; fill.classList.add("subiu");
+      }
+      ultimoProg=achadas;
     }
 
     // ----- botão de dica (individual, times, caça) -----
@@ -612,10 +788,41 @@ function montarGrade(grade, linhas, colunas){
   b.innerHTML="";
   letters.forEach((L,i)=>{
     const d=document.createElement("div");
-    d.className="cell"; d.textContent=L; d.dataset.i=i;
+    d.className="cell entrando"; d.textContent=L; d.dataset.i=i;
     d.style.fontSize=fs+"px";
+    // cascata: cada célula entra com um atrasinho, dá sensação de "montando"
+    d.style.animationDelay=(i*18)+"ms";
     b.appendChild(d); cells.push(d);
   });
+  setTimeout(()=>cells.forEach(c=>{
+    c.classList.remove("entrando"); c.style.animationDelay="";
+  }), 900);
+}
+
+// cresce o tabuleiro preservando as letras: só as novas células "surgem"
+function crescerGrade(grade, linhas, colunas, novas){
+  const antigasCells = cells.slice();
+  COLUNAS=colunas; LINHAS=linhas; N=colunas;
+  letters=grade.slice(); path=[]; cells=[];
+  const b=$("board");
+  b.style.gridTemplateColumns=`repeat(${COLUNAS},1fr)`;
+  const fs=Math.max(13,Math.round(120/Math.max(LINHAS,COLUNAS)));
+  b.innerHTML="";
+  const setNovas=new Set(novas||[]);
+  letters.forEach((L,i)=>{
+    const d=document.createElement("div");
+    d.className="cell"+(setNovas.has(i)?" nova":"");
+    d.textContent=L; d.dataset.i=i;
+    d.style.fontSize=fs+"px";
+    if(setNovas.has(i)){
+      // entrada escalonada e LENTA, pra dar tempo de acompanhar
+      d.style.animationDelay=(140+[...setNovas].indexOf(i)*90)+"ms";
+    }
+    b.appendChild(d); cells.push(d);
+  });
+  setTimeout(()=>cells.forEach(c=>{
+    c.classList.remove("nova"); c.style.animationDelay="";
+  }), 3000);
 }
 // atualiza só as letras, sem remontar (usado no embaralhamento)
 function atualizarLetras(grade){
@@ -636,6 +843,8 @@ function addCell(i){
   if(path.includes(i))return;
   if(path.length&&!neigh(path[path.length-1],i))return;
   path.push(i); hl(); Audio2.sfx("select");
+  const el=$("current");
+  el.classList.remove("cresceu"); void el.offsetWidth; el.classList.add("cresceu");
 }
 
 /* Detecção por proximidade do CENTRO da célula.
@@ -685,31 +894,55 @@ document.addEventListener("pointerup",()=>{
   if(down){down=false; ultimoX=ultimoY=null; finalizar();}
 });
 
+function animarBoard(classe){
+  const b=$("board");
+  b.classList.remove("ok","erro"); void b.offsetWidth; b.classList.add(classe);
+  setTimeout(()=>b.classList.remove(classe), 600);
+}
+function flutuarGanho(txt){
+  const el=document.createElement("div");
+  el.className="ganho-tempo"; el.textContent=txt;
+  document.querySelector(".stats").appendChild(el);
+  setTimeout(()=>el.remove(), 1200);
+}
+
 async function finalizar(){
   if(path.length>=3){
     const r=await api("/api/submeter",{nome:NOME,caminho:path});
     if(r&&r.ok){
       if(r.repetida){ msg("Já tinha essa","#b0a48c"); Audio2.sfx("repetida"); }
       else {
-        // palavra nova: mostra ganho de tempo (sobrevivência) e reinicia a espera da dica
         const bonus = r.ganho_tempo ? `  +${r.ganho_tempo}s` : "";
         msg("✓ "+r.palavra+bonus,"var(--verde)");
         Audio2.sfx("valida");
+        animarBoard("ok");
+        if(r.ganho_tempo) flutuarGanho("+"+r.ganho_tempo+"s");
         ultimaAchada=Date.now();
         $("dica-txt").textContent="";
+        $("dica-txt").classList.remove("revelou");
       }
     }else if(r){
       msg(r.motivo==="sem tempo" ? "Seu tempo acabou!" : "Não vale","#a05a3c");
       Audio2.sfx("invalida");
+      animarBoard("erro");
     }
   }
   path=[]; hl();
 }
 function msg(t,c){$("msg").textContent=t; $("msg").style.color=c||"#7a6b55";}
+let palavrasAnteriores=new Set();
 function sincronizarPalavras(lista){
-  $("found").innerHTML=lista.map(w=>`<span class="chip">${esc(w)}</span>`).join("");
+  // marca as que acabaram de aparecer, pra animar só elas
+  const novas=lista.filter(w=>!palavrasAnteriores.has(w));
+  $("found").innerHTML=lista.map(w=>
+    `<span class="chip${novas.includes(w)?" novo":""}">${esc(w)}</span>`).join("");
+  palavrasAnteriores=new Set(lista);
   let s=0; for(const w of lista) s+=w.length;
-  $("score").textContent=s;
+  const el=$("score");
+  if(el.textContent!==String(s) && novas.length){
+    el.classList.remove("cresceu"); void el.offsetWidth; el.classList.add("cresceu");
+  }
+  el.textContent=s;
 }
 
 // ---------- dicas ----------

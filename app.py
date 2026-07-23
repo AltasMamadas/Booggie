@@ -33,6 +33,7 @@ def estado_inicial():
         # nome -> {palavras:set, visto:ts, time:str|None,
         #          fim_individual:ts, vivo:bool, ultima_palavra:ts}
         "jogadores": {},
+        "host": None,              # primeiro a entrar; só ele configura/inicia
         "inicio": 0,
         "fim": 0,
         # --- sobrevivência ---
@@ -40,6 +41,8 @@ def estado_inicial():
             "fase_grade": 0,       # 0 = 4x4, 1 = 4x6, 2 = 6x6
             "prox_embaralho": 0,   # timestamp do próximo embaralhamento
             "embaralhou_em": 0,    # timestamp do último embaralhamento (pro aviso)
+            "cresceu_em": 0,       # timestamp do último crescimento (pra animação)
+            "celulas_novas": [],   # índices das células recém-adicionadas
         },
         "placar": {},              # placar individual da partida atual
         "placar_times": {},        # placar de times da partida atual
@@ -55,12 +58,32 @@ def estado_inicial():
 SOBREV_TEMPO_INICIAL = 90          # 1:30
 SOBREV_FASES = [                   # (segundos_decorridos, linhas, colunas)
     (0,  4, 4),
-    (30, 4, 6),
-    (60, 6, 6),
+    (30, 4, 6),                    # +30s
+    (60, 6, 6),                    # +30s
 ]
 SOBREV_EMBARALHA_APOS = 90         # começa a embaralhar após 1:30 de partida
 SOBREV_EMBARALHA_INTERVALO = 20    # e repete a cada 20s
 SOBREV_AVISO = 5                   # segundos de aviso (peças piscando)
+
+
+def _expandir_grade(grade, li_ant, co_ant, li_novo, co_novo):
+    """
+    Cresce o tabuleiro PRESERVANDO as letras já existentes nas mesmas
+    posições (linha/coluna). Só as células novas são sorteadas.
+    Retorna (nova_grade, indices_das_celulas_novas).
+    """
+    nova = [None] * (li_novo * co_novo)
+    for r in range(li_ant):
+        for c in range(co_ant):
+            nova[r * co_novo + c] = grade[r * co_ant + c]
+    novos = []
+    for i, v in enumerate(nova):
+        if v is None:
+            # mistura vogais/consoantes como na geração normal
+            nova[i] = (random.choice(gc.VOGAIS) if random.random() < 0.40
+                       else random.choice(gc.POOL_CONS))
+            novos.append(i)
+    return nova, novos
 
 
 def bonus_tempo(palavra):
@@ -104,20 +127,26 @@ def _aplicar_sobrevivencia():
     agora = time.time()
     decorrido = agora - estado["inicio"]
 
-    # troca de tabuleiro por tempo decorrido
+    # crescimento do tabuleiro por tempo decorrido
     idx, li, co = _fase_sobrev(decorrido)
     if idx != estado["sobrev"]["fase_grade"]:
+        li_ant, co_ant = estado["linhas"], estado["colunas"]
         estado["sobrev"]["fase_grade"] = idx
-        grade, qtd, maior = _nova_grade(li, co, estado["config"]["dificuldade"])
+        # PRESERVA as letras que já estavam lá; só as células novas são sorteadas
+        grade, novos = _expandir_grade(estado["grade"], li_ant, co_ant, li, co)
         estado["grade"] = grade
         estado["linhas"], estado["colunas"] = li, co
-        estado["grade_info"] = {"palavras": qtd, "maior": maior}
         estado["grade_palavras"] = sorted(
             gc.palavras_da_grade(grade, li, co), key=lambda w: (-len(w), w)
         )
-        # troca de tabuleiro zera as palavras já achadas (grade nova)
-        for j in estado["jogadores"].values():
-            j["palavras"] = set()
+        estado["grade_info"] = {
+            "palavras": len(estado["grade_palavras"]),
+            "maior": len(estado["grade_palavras"][0]) if estado["grade_palavras"] else 0,
+        }
+        # as palavras já achadas continuam valendo (o tabuleiro só cresceu)
+        # marca as células novas pra interface animar a entrada delas
+        estado["sobrev"]["cresceu_em"] = agora
+        estado["sobrev"]["celulas_novas"] = novos
         # reinicia o ciclo de embaralhamento
         estado["sobrev"]["prox_embaralho"] = 0
 
@@ -251,6 +280,8 @@ def _limpar_ausentes():
     fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > 30]
     for n in fora:
         del estado["jogadores"][n]
+    if fora:
+        _passar_host()
 
 
 @app.route("/")
@@ -265,10 +296,27 @@ def entrar():
         return jsonify({"erro": "nome vazio"}), 400
     with LOCK:
         if nome not in estado["jogadores"]:
-            estado["jogadores"][nome] = {"palavras": set(), "visto": time.time(), "time": None}
+            estado["jogadores"][nome] = {
+                "palavras": set(), "visto": time.time(), "time": None,
+                "vivo": True, "fim_individual": 0, "ultima_palavra": 0,
+            }
         else:
             estado["jogadores"][nome]["visto"] = time.time()
-    return jsonify({"ok": True, "nome": nome})
+        # o primeiro a entrar vira host
+        if estado["host"] is None or estado["host"] not in estado["jogadores"]:
+            estado["host"] = nome
+    return jsonify({"ok": True, "nome": nome, "host": estado["host"] == nome})
+
+
+def _eh_host(nome):
+    return bool(nome) and estado["host"] == nome
+
+
+def _passar_host():
+    """Se o host saiu, promove o próximo jogador da lista."""
+    if estado["host"] in estado["jogadores"]:
+        return
+    estado["host"] = next(iter(estado["jogadores"]), None)
 
 
 @app.route("/api/config", methods=["POST"])
@@ -276,6 +324,8 @@ def config():
     """Atualiza config da sala (só no lobby)."""
     data = request.json or {}
     with LOCK:
+        if not _eh_host(data.get("nome")):
+            return jsonify({"ok": False, "motivo": "so o host configura"})
         if estado["fase"] not in ("lobby", "fim_campeonato"):
             return jsonify({"ok": False, "motivo": "so no lobby"})
         c = estado["config"]
@@ -320,7 +370,10 @@ def set_time():
 
 @app.route("/api/iniciar", methods=["POST"])
 def iniciar():
+    data = request.json or {}
     with LOCK:
+        if not _eh_host(data.get("nome")):
+            return jsonify({"ok": False, "motivo": "so o host inicia"})
         # se veio de fim de campeonato, zera o placar de sets
         if estado["fase"] == "fim_campeonato":
             _reset_para_lobby(full=True)
@@ -337,7 +390,9 @@ def iniciar():
         # dimensões iniciais dependem do modo
         if modo == "sobrevivencia":
             _, li, co = _fase_sobrev(0)          # começa 4x4
-            estado["sobrev"] = {"fase_grade": 0, "prox_embaralho": 0, "embaralhou_em": 0}
+            estado["sobrev"] = {"fase_grade": 0, "prox_embaralho": 0,
+                                "embaralhou_em": 0, "cresceu_em": 0,
+                                "celulas_novas": []}
         else:
             li = co = estado["config"]["tamanho"]
 
@@ -413,8 +468,29 @@ def palavras_extras():
 
 @app.route("/api/nova", methods=["POST"])
 def nova():
+    """Encerra a partida / volta ao lobby. Só o host (ou sala vazia)."""
+    data = request.json or {}
     with LOCK:
+        if estado["jogadores"] and not _eh_host(data.get("nome")):
+            return jsonify({"ok": False, "motivo": "so o host encerra"})
         _reset_para_lobby(full=True)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/sair", methods=["POST"])
+def sair():
+    """Jogador sai da sala. Se era o host, passa o bastão."""
+    data = request.json or {}
+    nome = data.get("nome", "")
+    with LOCK:
+        if nome in estado["jogadores"]:
+            del estado["jogadores"][nome]
+        _passar_host()
+        # sala vazia volta ao lobby limpo
+        if not estado["jogadores"]:
+            _reset_para_lobby(full=True)
+            estado["ranking"] = {}
+            estado["host"] = None
     return jsonify({"ok": True})
 
 
@@ -541,14 +617,23 @@ def get_estado():
 
         # aviso de embaralhamento: piscar por SOBREV_AVISO segundos
         embaralhou_ha = None
+        cresceu_ha = None
+        celulas_novas = []
         if modo == "sobrevivencia" and jogando:
             t = estado["sobrev"].get("embaralhou_em", 0)
             if t and (agora - t) <= SOBREV_AVISO:
                 embaralhou_ha = round(agora - t, 1)
+            # crescimento: janela maior, pra dar tempo da animação rodar
+            tc = estado["sobrev"].get("cresceu_em", 0)
+            if tc and (agora - tc) <= 6:
+                cresceu_ha = round(agora - tc, 1)
+                celulas_novas = estado["sobrev"].get("celulas_novas", [])
 
         resp = {
             "fase": estado["fase"],
             "config": estado["config"],
+            "host": estado["host"],
+            "sou_host": estado["host"] == nome,
             "rodada": estado["rodada"],
             "grade": estado["grade"] if jogando else [],
             "linhas": estado["linhas"],
@@ -569,6 +654,9 @@ def get_estado():
         if embaralhou_ha is not None:
             resp["embaralhou_ha"] = embaralhou_ha
             resp["aviso_embaralho"] = SOBREV_AVISO
+        if cresceu_ha is not None:
+            resp["cresceu_ha"] = cresceu_ha
+            resp["celulas_novas"] = celulas_novas
         if modo == "caca" and jogando:
             resp["progresso"] = {
                 "achadas": len(minhas),
