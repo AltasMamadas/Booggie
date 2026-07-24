@@ -46,6 +46,7 @@
     padding:4px 9px;font-size:13px;font-weight:600;}
   .chip.exc{background:var(--madeira);color:#fff;border-color:var(--madeira);}
   .chip.rep{opacity:.65;}
+  .chip.minha{border-width:2px;border-color:var(--madeira);font-weight:700;}
   .plinha{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #eee3cf;}
   .plinha:last-child{border-bottom:none;}
   .plinha .nome{font-weight:600;}.plinha .pts{font-weight:700;color:var(--madeira);}
@@ -60,7 +61,6 @@
   .cfg-linha select,.cfg-linha input{margin-bottom:0;}
   .aviso{font-size:12px;color:#9a8a72;text-align:center;margin-top:4px;}
   .aviso.left{text-align:left;margin-top:8px;}
-  /* destaque do meu resultado */
   .meu-resultado{background:var(--madeira);color:#fff;border-radius:14px;padding:18px;text-align:center;margin-bottom:14px;}
   .meu-resultado .pts-grande{font-size:46px;font-weight:700;line-height:1;}
   .meu-resultado .rot{font-size:12px;opacity:.85;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
@@ -70,7 +70,6 @@
   .quebra .n{font-size:19px;font-weight:700;}
   .quebra .l{font-size:11px;opacity:.85;}
   .pos-medalha{font-size:14px;opacity:.95;margin-top:6px;}
-  /* slider de dificuldade */
   .dif-wrap{display:flex;gap:6px;}
   .dif-op{flex:1;text-align:center;padding:10px 4px;border:1px solid var(--borda);border-radius:9px;
     background:var(--creme);font-size:13px;font-weight:600;color:var(--madeira);cursor:pointer;}
@@ -90,166 +89,64 @@
   .switch label{font-size:14px;}
   input[type=checkbox]{width:auto;margin:0;transform:scale(1.3);}
   input[type=range]{width:100%;margin:0;padding:0;}
-  /* ============ ANIMAÇÕES ============ */
-  /* entrada das células ao montar o tabuleiro (cascata) */
-  @keyframes entraCelula{
-    0%  {opacity:0; transform:scale(.4) translateY(-14px);}
-    60% {opacity:1; transform:scale(1.08) translateY(0);}
-    100%{opacity:1; transform:scale(1);}
-  }
+  @keyframes entraCelula{0%{opacity:0;transform:scale(.4) translateY(-14px);}60%{opacity:1;transform:scale(1.08) translateY(0);}100%{opacity:1;transform:scale(1);}}
   .cell.entrando{animation:entraCelula .42s cubic-bezier(.34,1.56,.64,1) backwards;}
-
-  /* célula nova que surge quando o tabuleiro CRESCE (lenta, dá pra acompanhar) */
-  @keyframes surgeCelula{
-    0%  {opacity:0; transform:scale(.25) rotate(-12deg); background:#F2D479;}
-    45% {opacity:1; transform:scale(1.15) rotate(4deg);  background:#F2D479;}
-    75% {transform:scale(.97) rotate(0deg); background:#F7E6AE;}
-    100%{opacity:1; transform:scale(1); background:var(--creme);}
-  }
+  @keyframes surgeCelula{0%{opacity:0;transform:scale(.25) rotate(-12deg);background:#F2D479;}45%{opacity:1;transform:scale(1.15) rotate(4deg);background:#F2D479;}75%{transform:scale(.97) rotate(0deg);background:#F7E6AE;}100%{opacity:1;transform:scale(1);background:var(--creme);}}
   .cell.nova{animation:surgeCelula 1.1s cubic-bezier(.34,1.4,.64,1) backwards;}
-
-  /* letra selecionada: leve pulo */
-  @keyframes pulaSelecao{
-    0%{transform:scale(1);} 45%{transform:scale(1.14);} 100%{transform:scale(1.06);}
-  }
+  @keyframes pulaSelecao{0%{transform:scale(1);}45%{transform:scale(1.14);}100%{transform:scale(1.06);}}
   .cell.on{animation:pulaSelecao .16s ease-out;}
-
-  /* palavra aceita: tabuleiro dá um "flash" verde suave */
-  @keyframes flashOk{
-    0%{box-shadow:0 0 0 0 rgba(59,109,17,.55);}
-    100%{box-shadow:0 0 0 16px rgba(59,109,17,0);}
-  }
+  @keyframes flashOk{0%{box-shadow:0 0 0 0 rgba(59,109,17,.55);}100%{box-shadow:0 0 0 16px rgba(59,109,17,0);}}
   #board.ok{animation:flashOk .5s ease-out;}
-  /* palavra recusada: tremida curta */
-  @keyframes treme{
-    0%,100%{transform:translateX(0);}
-    20%{transform:translateX(-7px);} 40%{transform:translateX(6px);}
-    60%{transform:translateX(-4px);} 80%{transform:translateX(3px);}
-  }
+  @keyframes treme{0%,100%{transform:translateX(0);}20%{transform:translateX(-7px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(3px);}}
   #board.erro{animation:treme .34s ease-in-out;}
-
-  /* palavra nova entrando na lista */
-  @keyframes entraChip{
-    0%{opacity:0; transform:translateY(-8px) scale(.85);}
-    100%{opacity:1; transform:translateY(0) scale(1);}
-  }
+  @keyframes entraChip{0%{opacity:0;transform:translateY(-8px) scale(.85);}100%{opacity:1;transform:translateY(0) scale(1);}}
   .chip.novo{animation:entraChip .3s ease-out;}
-
-  /* texto da palavra sendo formada: pulsa a cada letra */
   @keyframes pulsaAtual{0%{transform:scale(1.12);}100%{transform:scale(1);}}
   #current.cresceu{animation:pulsaAtual .14s ease-out;}
-
-  /* relógio pulsando quando o tempo aperta */
   @keyframes pulsaTempo{0%,100%{transform:scale(1);}50%{transform:scale(1.16);}}
   #timer.urgente{animation:pulsaTempo 1s ease-in-out infinite;}
-
-  /* ganho de tempo no sobrevivência: sobe e some */
-  @keyframes sobeSome{
-    0%  {opacity:0; transform:translateY(6px) scale(.8);}
-    25% {opacity:1; transform:translateY(-4px) scale(1.1);}
-    100%{opacity:0; transform:translateY(-26px) scale(1);}
-  }
-  .ganho-tempo{position:absolute;right:6px;top:22px;font-weight:700;
-    color:var(--verde);font-size:17px;pointer-events:none;
-    animation:sobeSome 1.15s ease-out forwards;}
+  @keyframes sobeSome{0%{opacity:0;transform:translateY(6px) scale(.8);}25%{opacity:1;transform:translateY(-4px) scale(1.1);}100%{opacity:0;transform:translateY(-26px) scale(1);}}
+  .ganho-tempo{position:absolute;right:6px;top:22px;font-weight:700;color:var(--verde);font-size:17px;pointer-events:none;animation:sobeSome 1.15s ease-out forwards;}
   .stats{position:relative;}
-
-  /* faixa de aviso deslizando */
-  @keyframes desceFaixa{
-    0%{opacity:0; transform:translateY(-14px);}
-    100%{opacity:1; transform:translateY(0);}
-  }
+  @keyframes desceFaixa{0%{opacity:0;transform:translateY(-14px);}100%{opacity:1;transform:translateY(0);}}
   .faixa-aviso{animation:desceFaixa .35s ease-out;}
-
-  /* barra de progresso com brilho ao avançar */
-  @keyframes brilhoProg{
-    0%{filter:brightness(1);} 40%{filter:brightness(1.5);} 100%{filter:brightness(1);}
-  }
+  @keyframes brilhoProg{0%{filter:brightness(1);}40%{filter:brightness(1.5);}100%{filter:brightness(1);}}
   .prog-fill.subiu{animation:brilhoProg .55s ease-out;}
-
-  /* telas entrando */
-  @keyframes entraTela{
-    0%{opacity:0; transform:translateY(10px);}
-    100%{opacity:1; transform:translateY(0);}
-  }
-  #tela-jogo:not(.hidden), #tela-resultado:not(.hidden),
-  #tela-fim:not(.hidden), #tela-lobby:not(.hidden){animation:entraTela .3s ease-out;}
-
-  /* pontuação final "contando" */
-  @keyframes surgePontos{
-    0%{opacity:0; transform:scale(.5);}
-    70%{transform:scale(1.12);}
-    100%{opacity:1; transform:scale(1);}
-  }
+  @keyframes entraTela{0%{opacity:0;transform:translateY(10px);}100%{opacity:1;transform:translateY(0);}}
+  #tela-jogo:not(.hidden),#tela-resultado:not(.hidden),
+  #tela-fim:not(.hidden),#tela-lobby:not(.hidden){animation:entraTela .3s ease-out;}
+  @keyframes surgePontos{0%{opacity:0;transform:scale(.5);}70%{transform:scale(1.12);}100%{opacity:1;transform:scale(1);}}
   .meu-resultado .pts-grande{animation:surgePontos .5s cubic-bezier(.34,1.5,.64,1);}
-
-  /* medalha do vencedor */
-  @keyframes balanca{
-    0%,100%{transform:rotate(0);} 25%{transform:rotate(-9deg);} 75%{transform:rotate(9deg);}
-  }
+  @keyframes balanca{0%,100%{transform:rotate(0);}25%{transform:rotate(-9deg);}75%{transform:rotate(9deg);}}
   .venc{animation:balanca .8s ease-in-out;}
-
-  /* dica revelada */
-  @keyframes revelaDica{
-    0%{opacity:0; letter-spacing:12px;}
-    100%{opacity:1; letter-spacing:2px;}
-  }
+  @keyframes revelaDica{0%{opacity:0;letter-spacing:12px;}100%{opacity:1;letter-spacing:2px;}}
   .dica-txt.revelou{animation:revelaDica .45s ease-out;}
-
-  /* jogador eliminado no sobrevivência */
-  @keyframes saiJogador{
-    0%{opacity:1;} 100%{opacity:.45;}
-  }
+  @keyframes saiJogador{0%{opacity:1;}100%{opacity:.45;}}
   .surv-linha.morto{animation:saiJogador .5s ease-out;}
-
-  /* respeita quem prefere menos movimento */
-  @media (prefers-reduced-motion: reduce){
-    *{animation-duration:.01ms!important; animation-iteration-count:1!important;}
-  }
-
-  /* aviso de embaralhamento: peças piscando em amarelo */
-  @keyframes piscaAmarelo{
-    0%,100%{background:var(--creme);border-color:var(--borda);}
-    50%    {background:#F2D479;border-color:#D9AE33;}
-  }
+  @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;}}
+  @keyframes piscaAmarelo{0%,100%{background:var(--creme);border-color:var(--borda);}50%{background:#F2D479;border-color:#D9AE33;}}
   .cell.embaralhou{animation:piscaAmarelo 1.25s ease-in-out infinite;}
-  /* faixa de aviso no topo do tabuleiro */
-  .faixa-aviso{background:#F2D479;color:#5c4530;border-radius:9px;padding:8px 12px;
-    text-align:center;font-size:13px;font-weight:700;margin-bottom:10px;}
-  /* progresso do caça completa */
+  .faixa-aviso{background:#F2D479;color:#5c4530;border-radius:9px;padding:8px 12px;text-align:center;font-size:13px;font-weight:700;margin-bottom:10px;}
   .prog-wrap{margin-bottom:10px;}
   .prog-txt{display:flex;justify-content:space-between;font-size:12px;color:#9a8a72;margin-bottom:4px;}
   .prog-barra{height:8px;background:#e8dcc4;border-radius:6px;overflow:hidden;}
   .prog-fill{height:100%;background:var(--madeira);width:0%;transition:width .4s ease;}
-  /* botão de dica */
   #dica-box{margin-bottom:10px;}
   #btn-dica{padding:10px;font-size:14px;margin-bottom:6px;}
   #btn-dica:disabled{background:#e8dcc4;color:#b0a48c;cursor:default;}
-  .dica-txt{text-align:center;font-size:14px;color:var(--madeira);font-weight:700;
-    letter-spacing:2px;min-height:20px;}
-  /* lista de jogadores no sobrevivência */
+  .dica-txt{text-align:center;font-size:14px;color:var(--madeira);font-weight:700;letter-spacing:2px;min-height:20px;}
   .surv-linha{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;}
   .surv-linha .n{flex:1;font-weight:600;}
   .surv-linha .t{font-weight:700;color:var(--madeira);}
   .surv-linha.morto{opacity:.45;}
   .surv-linha.morto .t{color:var(--vermelho);}
-
-  /* aviso visual dos últimos 15s: bordas avermelhadas pulsando */
-  #alerta-tempo{position:fixed;inset:0;pointer-events:none;z-index:50;opacity:0;
-    transition:opacity .6s ease;
-    box-shadow:inset 0 0 60px 18px rgba(163,45,45,.55);}
+  #alerta-tempo{position:fixed;inset:0;pointer-events:none;z-index:50;opacity:0;transition:opacity .6s ease;box-shadow:inset 0 0 60px 18px rgba(163,45,45,.55);}
   #alerta-tempo.on{opacity:1;animation:pulsaBorda 1.1s ease-in-out infinite;}
-  @keyframes pulsaBorda{
-    0%,100%{box-shadow:inset 0 0 45px 12px rgba(163,45,45,.40);}
-    50%    {box-shadow:inset 0 0 80px 26px rgba(163,45,45,.75);}
-  }
-  /* seções retráteis */
-  .secao-tit{display:flex;align-items:center;justify-content:space-between;cursor:pointer;
-    margin:0 0 12px;font-size:12px;color:#9a8a72;text-transform:uppercase;letter-spacing:.8px;}
+  @keyframes pulsaBorda{0%,100%{box-shadow:inset 0 0 45px 12px rgba(163,45,45,.40);}50%{box-shadow:inset 0 0 80px 26px rgba(163,45,45,.75);}}
+  .secao-tit{display:flex;align-items:center;justify-content:space-between;cursor:pointer;margin:0 0 12px;font-size:12px;color:#9a8a72;text-transform:uppercase;letter-spacing:.8px;}
   .secao-tit .seta{font-size:14px;transition:transform .2s;}
   .secao-tit.fechado .seta{transform:rotate(-90deg);}
   .secao-corpo.fechado{display:none;}
-  /* resumo da grade */
   .resumo-grid{display:flex;gap:10px;text-align:center;}
   .resumo-grid > div{flex:1;background:#f0e7d4;border-radius:10px;padding:10px 6px;}
   .resumo-grid .n{font-size:20px;font-weight:700;color:var(--madeira);}
@@ -263,7 +160,6 @@
   .hist-num{width:30px;font-size:12px;color:#9a8a72;font-weight:700;}
   .hist-venc{flex:1;font-weight:600;}
   .hist-pts{font-weight:700;color:var(--madeira);}
-  /* leaderboard & estatísticas */
   .lb-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none;}
   .lb-tabs::-webkit-scrollbar{display:none;}
   .lb-tab{flex-shrink:0;padding:8px 12px;font-size:13px;font-weight:600;border-radius:8px;width:auto;margin-bottom:0;}
@@ -273,7 +169,18 @@
   .stat-item .l{font-size:11px;color:#9a8a72;margin-top:2px;}
   .cfg-topo{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
   .cfg-topo-titulo{font-size:18px;font-weight:700;color:var(--madeira);}
-
+  /* home */
+  .home-greeting{font-size:22px;font-weight:700;color:var(--madeira);margin:18px 0 22px;text-align:center;}
+  /* sala list */
+  .sala-card{background:var(--creme);border:1px solid var(--borda);border-radius:12px;padding:14px;margin-bottom:10px;}
+  .sala-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .sala-nome-txt{font-weight:700;font-size:15px;}
+  .sala-sub{font-size:12px;color:#9a8a72;margin-top:2px;}
+  .sala-pw-box{margin-top:8px;}
+  /* lobby header */
+  .sala-lobby-header{text-align:center;margin-bottom:14px;}
+  .sala-lobby-nome{font-size:19px;font-weight:700;color:var(--madeira);}
+  .sala-lobby-id{font-size:12px;color:#9a8a72;}
 </style>
 </head>
 <body>
@@ -301,41 +208,75 @@
     </div>
   </div>
 
+  <!-- HOME -->
+  <div id="tela-home" class="hidden">
+    <div class="home-greeting">Olá, <span id="home-user-nome"></span>!</div>
+    <button onclick="irCriarSala()">➕ Criar sala</button>
+    <button class="sec" onclick="irEntrarSala()">🚪 Entrar em sala</button>
+    <div class="row2" style="margin-top:4px">
+      <button class="sec mini" onclick="abrirLeaderboard()">🏆 Leaderboard</button>
+      <button class="sec mini" onclick="abrirConfig()">⚙️ Configurações</button>
+    </div>
+  </div>
+
+  <!-- CRIAR SALA -->
+  <div id="tela-criar-sala" class="hidden">
+    <div class="cfg-topo">
+      <div class="cfg-topo-titulo">Criar sala</div>
+      <button class="btn-cfg" onclick="irHome()">✕</button>
+    </div>
+    <div class="card">
+      <input id="nome-sala" placeholder="Nome da sala" maxlength="32" autocomplete="off">
+      <input id="senha-sala" type="password" placeholder="Senha (opcional)" maxlength="20">
+      <button onclick="criarSala()" id="btn-criar-sala">Criar sala</button>
+      <div class="aviso left" id="criar-sala-msg"></div>
+    </div>
+    <button class="sec" onclick="irHome()">Voltar</button>
+  </div>
+
+  <!-- ENTRAR EM SALA -->
+  <div id="tela-entrar-sala" class="hidden">
+    <div class="cfg-topo">
+      <div class="cfg-topo-titulo">Entrar em sala</div>
+      <button class="btn-cfg" onclick="irHome()">✕</button>
+    </div>
+    <div id="salas-lista"><div class="aviso">Carregando...</div></div>
+    <div class="row2" style="margin-top:10px">
+      <button class="sec mini" onclick="carregarSalas()">↻ Atualizar</button>
+      <button class="sec mini" onclick="irHome()">Voltar</button>
+    </div>
+  </div>
+
   <!-- LOBBY -->
   <div id="tela-lobby" class="hidden">
+    <div class="sala-lobby-header">
+      <div class="sala-lobby-nome" id="sala-lobby-nome"></div>
+      <div class="sala-lobby-id" id="sala-lobby-id"></div>
+    </div>
+
     <div class="card">
       <h3>Na sala (<span id="qtd">0</span>)</h3>
       <div class="lista-j" id="lista-j"></div>
     </div>
 
     <div class="card">
-      <h3>Definições de jogo</h3>
-      <div class="cfg-linha">
-        <label>Tempo</label>
-        <select id="cfg-duracao" onchange="salvarConfig()">
-          <option value="60">1 min</option>
-          <option value="120">2 min</option>
-          <option value="180" selected>3 min</option>
-          <option value="300">5 min</option>
-        </select>
+      <h3>Modo de jogo</h3>
+      <div class="dif-wrap" style="margin-bottom:10px">
+        <div class="dif-op sel" data-cat="competitivo" onclick="escolherCategoria('competitivo')">⚔️ Competitivo</div>
+        <div class="dif-op" data-cat="cooperativo" onclick="escolherCategoria('cooperativo')">🤝 Cooperativo</div>
       </div>
-      <div class="cfg-linha">
-        <label>Modo</label>
-        <select id="cfg-modo" onchange="salvarConfig()">
-          <option value="individual" selected>Individual</option>
-          <option value="times">Times</option>
-          <option value="sobrevivencia">Sobrevivência</option>
-          <option value="caca">Caça completa</option>
-        </select>
+      <div id="cfg-comp-box">
+        <div class="cfg-linha" style="margin-bottom:0">
+          <label>Modo</label>
+          <select id="cfg-modo" onchange="salvarConfig()">
+            <option value="individual">Free-for-all</option>
+            <option value="times">Times</option>
+            <option value="sobrevivencia">Sobrevivência</option>
+          </select>
+        </div>
       </div>
-      <div class="cfg-linha">
-        <label>Partidas</label>
-        <select id="cfg-partidas" onchange="salvarConfig()">
-          <option value="1" selected>1 (partida única)</option>
-          <option value="3">3 (melhor de 3)</option>
-          <option value="5">5 (melhor de 5)</option>
-          <option value="7">7</option>
-        </select>
+      <div id="cfg-coop-box" class="hidden" style="margin-top:6px">
+        <div class="aviso left" style="margin-top:0">Caça cooperativa: todos encontram palavras juntos. Cada palavra descoberta fica visível para o grupo. Dica disponível.</div>
       </div>
       <div class="aviso left" id="modo-desc"></div>
       <div id="cfg-time-box" class="hidden">
@@ -346,8 +287,28 @@
     </div>
 
     <div class="card">
+      <h3>Partidas na série</h3>
+      <div class="dif-wrap">
+        <div class="dif-op sel" data-n="1" onclick="escolherSerie(1)">1</div>
+        <div class="dif-op" data-n="3" onclick="escolherSerie(3)">3</div>
+        <div class="dif-op" data-n="5" onclick="escolherSerie(5)">5</div>
+        <div class="dif-op" data-n="7" onclick="escolherSerie(7)">7</div>
+      </div>
+      <div class="aviso left" id="serie-desc">Partida única.</div>
+    </div>
+
+    <div class="card">
       <h3>Tabuleiro</h3>
-      <div class="cfg-linha">
+      <div class="cfg-linha" id="linha-tempo">
+        <label>Tempo</label>
+        <select id="cfg-duracao" onchange="salvarConfig()">
+          <option value="60">1 min</option>
+          <option value="120">2 min</option>
+          <option value="180" selected>3 min</option>
+          <option value="300">5 min</option>
+        </select>
+      </div>
+      <div class="cfg-linha" id="linha-tamanho">
         <label>Tamanho</label>
         <select id="cfg-tamanho" onchange="salvarConfig()">
           <option value="3">3 × 3</option>
@@ -387,7 +348,7 @@
     <div id="current">&nbsp;</div>
     <div id="faixa-aviso" class="faixa-aviso hidden"></div>
     <div id="prog-box" class="prog-wrap hidden">
-      <div class="prog-txt"><span>Palavras encontradas</span><span id="prog-num">0/0</span></div>
+      <div class="prog-txt"><span id="prog-lbl">Palavras encontradas</span><span id="prog-num">0/0</span></div>
       <div class="prog-barra"><div class="prog-fill" id="prog-fill"></div></div>
     </div>
     <div id="board"></div>
@@ -407,10 +368,7 @@
   <!-- RESULTADO DE PARTIDA -->
   <div id="tela-resultado" class="hidden">
     <div class="rodada-tag" id="res-rodada"></div>
-
-    <!-- destaque do MEU resultado -->
     <div class="meu-resultado" id="meu-res"></div>
-
     <div class="card" id="resumo-box"></div>
     <div class="card hidden" id="sets-box"></div>
     <div class="card" id="placar"></div>
@@ -421,7 +379,7 @@
     <button class="sec" onclick="voltarLobby()">Encerrar e voltar ao lobby</button>
   </div>
 
-  <!-- FIM DE CAMPEONATO -->
+  <!-- FIM DE SÉRIE -->
   <div id="tela-fim" class="hidden">
     <div class="venc" id="fim-venc"></div>
     <div class="meu-resultado" id="fim-meu"></div>
@@ -430,7 +388,7 @@
     <div class="card" id="fim-rank"></div>
     <div class="card" id="fim-placar"></div>
     <div class="card" id="fim-todas"></div>
-    <button onclick="iniciar()">Novo campeonato</button>
+    <button onclick="iniciar()">Nova série</button>
     <button class="sec" onclick="voltarLobby()">Voltar ao lobby</button>
   </div>
 
@@ -477,7 +435,6 @@
         <button class="sec mini" onclick="logoutPerfil()">Sair da conta</button>
       </div>
     </div>
-
     <div class="card">
       <h3>Som</h3>
       <div class="switch">
@@ -493,11 +450,9 @@
         <input type="range" id="vol-musica" min="0" max="100" value="35" oninput="aplicarAudio()">
       </div>
       <button class="sec mini" onclick="testarMusica()">▶ Ouvir trilha</button>
-
       <h3 class="mt">Sua própria música</h3>
       <input type="file" id="arq-mp3" accept="audio/*" onchange="carregarMusicaLocal()">
       <div class="aviso left" id="mp3-nome">Nenhum arquivo escolhido. Fica só no seu aparelho.</div>
-
       <h3 class="mt">Efeitos sonoros</h3>
       <div class="switch">
         <label>Sons ao jogar</label>
@@ -508,7 +463,6 @@
         <input type="range" id="vol-sfx" min="0" max="100" value="50" oninput="aplicarAudio()">
       </div>
     </div>
-
     <div class="card">
       <h3>Sensibilidade do toque</h3>
       <div class="cfg-linha">
@@ -519,12 +473,10 @@
         Menor = precisa acertar mais o centro da letra (evita pegar diagonais sem querer).
       </div>
     </div>
-
-    <div class="card">
+    <div class="card" id="cfg-palavras-card">
       <h3>Palavras aceitas</h3>
       <div class="aviso left" style="margin-top:0;margin-bottom:10px">
-        Adicione palavras que faltam no dicionário. Valem pra todos na sala,
-        durante esta sessão.
+        Adicione palavras que faltam no dicionário. Valem pra todos na sala, durante esta sessão.
       </div>
       <textarea id="txt-palavras" placeholder="Uma por linha, ou separadas por vírgula&#10;ex.: xablau, trecoteco"></textarea>
       <div class="row2">
@@ -534,241 +486,338 @@
       <div class="aviso left" id="pal-msg"></div>
       <div class="chips" id="pal-lista" style="margin-top:10px"></div>
     </div>
-
     <button class="sec" onclick="fecharConfig()">Voltar</button>
   </div>
 </div>
 
 <script src="/static/audio.js"></script>
 <script>
+// ---- state ----
 let NOME=null, faseAtual=null, rodadaAtual=-1;
 let PERFIL_TOKEN=null, PERFIL_USER=null, abaPerfil="entrar";
+let SALA_ID=null, SALA_NOME=null;
+let catSel="competitivo", serieSel=1;
 let lbDados=null, lbAba=0;
 let letters=[], path=[], cells=[], down=false, N=4;
-let pollTimer=null, telaAnterior="login", ultimoEstado=null;
+let pollTimer=null, telaAnterior="home", ultimoEstado=null;
 let difSel="medio", avisou30=false;
-// dicas: só liberam após 6s sem achar palavra nova
 let ultimaAchada=0, ultimoEmbaralho=0, dicaTimer=null;
 let souHost=false, ultimoCresceu=0, ultimoProg=0;
+let palavrasAnteriores=new Set();
 const DICA_ESPERA=10000;
 
 function $(id){return document.getElementById(id);}
-function show(t){["login","lobby","jogo","resultado","fim","config","stats","leaderboard"].forEach(x=>
-  $("tela-"+x).classList.toggle("hidden", x!==t));}
-function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function show(t){
+  ["login","home","criar-sala","entrar-sala","lobby","jogo","resultado","fim","config","stats","leaderboard"]
+  .forEach(x=>$("tela-"+x).classList.toggle("hidden",x!==t));
+}
+function esc(s){return(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 
 async function api(url,body){
   try{
     const headers={};
     if(PERFIL_TOKEN) headers["Authorization"]="Bearer "+PERFIL_TOKEN;
     const opt={headers};
-    if(body){ opt.method="POST"; headers["Content-Type"]="application/json"; opt.body=JSON.stringify(body); }
+    if(body){opt.method="POST";headers["Content-Type"]="application/json";opt.body=JSON.stringify(body);}
     const r=await fetch(url,opt); return await r.json();
-  }catch(e){ return null; }
+  }catch(e){return null;}
 }
+function apiSala(path,body){return api(`/api/sala/${SALA_ID}${path}`,body);}
 
-// ---------- perfil (usuário + PIN) ----------
-function carregarPerfilLocal(){
-  try{
-    const p=JSON.parse(localStorage.getItem("bg_perfil")||"null");
-    if(p&&p.token&&p.username){ PERFIL_TOKEN=p.token; PERFIL_USER=p.username; return true; }
-  }catch(e){}
-  return false;
-}
-function salvarPerfilLocal(token,username){
+// ---- perfil ----
+function salvarPerfilLocal(token,username,sala_id){
   PERFIL_TOKEN=token; PERFIL_USER=username;
-  try{ localStorage.setItem("bg_perfil", JSON.stringify({token,username})); }catch(e){}
-  $("conta-user").textContent="Logado como: "+username;
+  try{localStorage.setItem("bg_perfil",JSON.stringify({token,username,sala_id}));}catch(e){}
+  if($("conta-user")) $("conta-user").textContent="Logado como: "+username;
 }
 function mostrarAbaPerfil(aba){
   abaPerfil=aba;
-  $("tab-entrar").classList.toggle("sec", aba!=="entrar");
-  $("tab-criar").classList.toggle("sec", aba!=="criar");
-  $("btn-perfil-acao").textContent = aba==="entrar" ? "Entrar" : "Criar conta";
+  $("tab-entrar").classList.toggle("sec",aba!=="entrar");
+  $("tab-criar").classList.toggle("sec",aba!=="criar");
+  $("btn-perfil-acao").textContent=aba==="entrar"?"Entrar":"Criar conta";
   $("perfil-msg").textContent="";
 }
 async function submeterPerfil(){
   const username=$("perfil-user").value.trim();
   const pin=$("perfil-pin").value.trim();
-  if(!username){ $("perfil-msg").textContent="Digite um usuário."; return; }
-  if(!/^\d{4}$/.test(pin)){ $("perfil-msg").textContent="O PIN tem que ter 4 dígitos."; return; }
+  if(!username){$("perfil-msg").textContent="Digite um usuário.";return;}
+  if(!/^\d{4}$/.test(pin)){$("perfil-msg").textContent="O PIN tem que ter 4 dígitos.";return;}
   Audio2.destravar();
-  const url = abaPerfil==="entrar" ? "/api/perfil/login" : "/api/perfil/criar";
+  const url=abaPerfil==="entrar"?"/api/perfil/login":"/api/perfil/criar";
   const r=await api(url,{username,pin});
   if(r&&r.ok){
-    salvarPerfilLocal(r.token,r.username);
+    salvarPerfilLocal(r.token,r.username,null);
     $("perfil-msg").textContent="";
-    await entrarSala();
+    irHome();
   }else{
-    $("perfil-msg").textContent = (r&&r.motivo) || "Não deu pra entrar. Tenta de novo.";
-  }
-}
-async function entrarSala(){
-  $("perfil-form").classList.add("hidden");
-  $("perfil-carregando").classList.remove("hidden");
-  const r=await api("/api/entrar",{});
-  if(r&&r.ok){
-    NOME=r.nome; iniciarPoll();
-  }else{
-    // token inválido/expirado: força novo login
-    logoutPerfil();
+    $("perfil-msg").textContent=(r&&r.motivo)||"Não deu pra entrar. Tenta de novo.";
   }
 }
 function logoutPerfil(){
-  if(pollTimer) clearInterval(pollTimer);
-  PERFIL_TOKEN=null; PERFIL_USER=null; NOME=null; souHost=false; faseAtual=null; rodadaAtual=-1;
-  try{ localStorage.removeItem("bg_perfil"); }catch(e){}
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  PERFIL_TOKEN=null;PERFIL_USER=null;NOME=null;
+  SALA_ID=null;SALA_NOME=null;
+  souHost=false;faseAtual=null;rodadaAtual=-1;
+  palavrasAnteriores=new Set();
+  Audio2.pararMusica();
+  try{localStorage.removeItem("bg_perfil");}catch(e){}
   $("perfil-carregando").classList.add("hidden");
   $("perfil-form").classList.remove("hidden");
   mostrarAbaPerfil("entrar");
   show("login");
 }
 
-// ---------- configurações de jogo ----------
+// ---- home ----
+function irHome(){
+  if($("home-user-nome")) $("home-user-nome").textContent=PERFIL_USER||"";
+  show("home");
+}
+function irCriarSala(){
+  $("nome-sala").value="";
+  $("senha-sala").value="";
+  $("criar-sala-msg").textContent="";
+  show("criar-sala");
+}
+async function irEntrarSala(){
+  show("entrar-sala");
+  await carregarSalas();
+}
+
+// ---- criar sala ----
+async function criarSala(){
+  const nome=$("nome-sala").value.trim();
+  const senha=$("senha-sala").value.trim();
+  if(!nome){$("criar-sala-msg").textContent="Digite um nome para a sala.";return;}
+  const btn=$("btn-criar-sala");
+  btn.disabled=true;
+  const body={nome};
+  if(senha) body.senha=senha;
+  const r=await api("/api/sala/criar",body);
+  btn.disabled=false;
+  if(!r||!r.ok){
+    $("criar-sala-msg").textContent=(r&&r.motivo)||"Não foi possível criar a sala.";
+    return;
+  }
+  SALA_ID=r.sala_id; SALA_NOME=r.sala_nome; NOME=r.nome;
+  salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,SALA_ID);
+  iniciarPoll();
+}
+
+// ---- entrar em sala ----
+async function carregarSalas(){
+  $("salas-lista").innerHTML='<div class="aviso">Carregando...</div>';
+  const r=await api("/api/salas");
+  if(!r||!r.ok){$("salas-lista").innerHTML='<div class="aviso">Não foi possível carregar as salas.</div>';return;}
+  if(!r.salas.length){$("salas-lista").innerHTML='<div class="aviso">Nenhuma sala disponível. Crie uma!</div>';return;}
+  const fL={lobby:"lobby",jogando:"jogando",resultado:"resultado",fim_campeonato:"fim"};
+  const cL={cooperativo:"🤝 Cooperativo",competitivo:"⚔️ Competitivo"};
+  $("salas-lista").innerHTML=r.salas.map(s=>`
+    <div class="sala-card">
+      <div class="sala-card-top">
+        <div>
+          <div class="sala-nome-txt">${esc(s.nome)}${s.tem_senha?" 🔒":""}</div>
+          <div class="sala-sub">${s.jogadores} jogador${s.jogadores!==1?"es":""} · ${fL[s.fase]||s.fase} · ${cL[s.modo_categoria]||s.modo_categoria}</div>
+        </div>
+        <button class="mini" style="width:auto;padding:8px 14px;flex-shrink:0" onclick="clicarEntrarSala('${esc(s.id)}',${s.tem_senha})">Entrar</button>
+      </div>
+      ${s.tem_senha?`<div class="sala-pw-box hidden" id="pw-box-${esc(s.id)}">
+        <input type="password" id="pw-inp-${esc(s.id)}" placeholder="Senha da sala" maxlength="20">
+        <button class="mini sec" onclick="confirmarEntrar('${esc(s.id)}')">Confirmar</button>
+      </div>`:""}
+    </div>`).join("");
+}
+function clicarEntrarSala(sala_id,tem_senha){
+  if(!tem_senha){_doEntrar(sala_id,null);return;}
+  const box=$(`pw-box-${sala_id}`);
+  if(box.classList.contains("hidden")){box.classList.remove("hidden");$(`pw-inp-${sala_id}`).focus();}
+  else confirmarEntrar(sala_id);
+}
+async function confirmarEntrar(sala_id){
+  const senha=($(`pw-inp-${sala_id}`)?.value||"").trim();
+  await _doEntrar(sala_id,senha);
+}
+async function _doEntrar(sala_id,senha){
+  const body={};
+  if(senha) body.senha=senha;
+  const r=await api(`/api/sala/${sala_id}/entrar`,body);
+  if(!r||!r.ok){alert((r&&r.motivo)||"Não foi possível entrar na sala.");return;}
+  SALA_ID=sala_id; SALA_NOME=r.sala_nome; NOME=r.nome;
+  salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,SALA_ID);
+  iniciarPoll();
+}
+
+// ---- configuração de jogo ----
 async function salvarConfig(){
   if(!souHost) return;
-  await api("/api/config",{
+  const modoComp=$("cfg-modo")?.value||"individual";
+  await apiSala("/config",{
     tamanho:+$("cfg-tamanho").value,
     duracao:+$("cfg-duracao").value,
-    modo:$("cfg-modo").value,
-    n_partidas:+$("cfg-partidas").value,
+    modo:catSel==="cooperativo"?"caca":modoComp,
+    n_partidas:serieSel,
     dificuldade:difSel,
+    modo_categoria:catSel,
   });
   atualizarUIConfig();
 }
+function escolherCategoria(cat){
+  catSel=cat;
+  document.querySelectorAll("[data-cat]").forEach(el=>el.classList.toggle("sel",el.dataset.cat===cat));
+  atualizarUIConfig();
+  salvarConfig();
+}
+function escolherSerie(n){
+  serieSel=n;
+  document.querySelectorAll("[data-n]").forEach(el=>el.classList.toggle("sel",+el.dataset.n===n));
+  atualizarUIConfig();
+  salvarConfig();
+}
 function escolherDif(d){
   difSel=d;
-  document.querySelectorAll(".dif-op").forEach(el=>
-    el.classList.toggle("sel", el.dataset.d===d));
-  const txt={
-    facil:"Fácil: grades com muitas palavras pra achar.",
-    medio:"Médio: equilíbrio entre quantidade e desafio.",
-    dificil:"Difícil: menos palavras, e as boas são mais longas."
-  };
+  document.querySelectorAll("[data-d]").forEach(el=>el.classList.toggle("sel",el.dataset.d===d));
+  const txt={facil:"Fácil: grades com muitas palavras pra achar.",medio:"Médio: equilíbrio entre quantidade e desafio.",dificil:"Difícil: menos palavras, e as boas são mais longas."};
   $("dif-desc").textContent=txt[d];
   salvarConfig();
 }
 const DESC_MODO={
   individual:"Cada um por si. Palavra exclusiva vale o dobro.",
   times:"Mesmo nome de time joga junto; os pontos somam.",
-  sobrevivencia:"Começa com 1:30. Cada palavra devolve tempo — 3 letras +1s, 4 +3s, 5 +5s... O tabuleiro cresce (4×4 → 4×6 → 6×6) e depois as letras trocam de lugar.",
+  sobrevivencia:"Começa com 1:30. Cada palavra devolve tempo. O tabuleiro cresce e depois embaralha.",
+  caca_coop:"Caça cooperativa: encontrem todas as palavras juntos. Dica disponível.",
   caca:"Sem relógio: ache todas as palavras do tabuleiro. Dica disponível.",
 };
-
 function atualizarUIConfig(){
-  const modo=$("cfg-modo").value;
-  $("cfg-time-box").classList.toggle("hidden", modo!=="times");
-  $("modo-desc").textContent = DESC_MODO[modo] || "";
-
-  // no sobrevivência o tabuleiro e o tempo são fixos pela mecânica;
-  // no caça não existe relógio.
-  const linhaTempo   = $("cfg-duracao").closest(".cfg-linha");
-  const linhaTamanho = $("cfg-tamanho").closest(".cfg-linha");
-  const semTempo   = (modo==="sobrevivencia" || modo==="caca");
-  const semTamanho = (modo==="sobrevivencia");
-  if(linhaTempo)   linhaTempo.style.display   = semTempo   ? "none" : "";
-  if(linhaTamanho) linhaTamanho.style.display = semTamanho ? "none" : "";
-
-  $("lbl-inicio").textContent = (+$("cfg-partidas").value)>1 ? "campeonato" : "partida";
+  const modo=catSel==="cooperativo"?"caca":($("cfg-modo")?.value||"individual");
+  $("cfg-coop-box").classList.toggle("hidden",catSel!=="cooperativo");
+  $("cfg-comp-box").classList.toggle("hidden",catSel!=="competitivo");
+  $("cfg-time-box").classList.toggle("hidden",modo!=="times");
+  const semTempo=catSel==="cooperativo"||modo==="sobrevivencia";
+  const semTamanho=modo==="sobrevivencia";
+  const lt=$("linha-tempo"); if(lt) lt.style.display=semTempo?"none":"";
+  const ls=$("linha-tamanho"); if(ls) ls.style.display=semTamanho?"none":"";
+  const descKey=catSel==="cooperativo"?"caca_coop":modo;
+  $("modo-desc").textContent=DESC_MODO[descKey]||"";
+  const serieDesc={1:"Partida única.",3:"Primeiro a ganhar 3 partidas.",5:"Primeiro a ganhar 5 partidas.",7:"Primeiro a ganhar 7 partidas."};
+  if($("serie-desc")) $("serie-desc").textContent=serieDesc[serieSel]||"";
+  $("lbl-inicio").textContent=serieSel>1?"série":"partida";
 }
-async function salvarTime(){ await api("/api/time",{time:$("cfg-time").value}); }
+async function salvarTime(){await apiSala("/time",{time:$("cfg-time").value});}
 async function iniciar(){
   if(!souHost) return;
   Audio2.destravar();
-  await api("/api/iniciar",{});
+  await apiSala("/iniciar",{});
 }
 async function voltarLobby(){
   if(!souHost) return;
-  await api("/api/nova",{});
+  await apiSala("/nova",{});
 }
 async function sairDaSala(){
   if(!confirm("Sair da sala?")) return;
-  await api("/api/sair",{});
-  if(pollTimer) clearInterval(pollTimer);
-  NOME=null; souHost=false; faseAtual=null; rodadaAtual=-1;
+  await apiSala("/sair",{});
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  NOME=null;souHost=false;faseAtual=null;rodadaAtual=-1;
+  SALA_ID=null;SALA_NOME=null;
+  palavrasAnteriores=new Set();
   Audio2.pararMusica();
-  // continua logado no perfil; só volta pra sala
-  await entrarSala();
+  salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,null);
+  irHome();
 }
 async function encerrarPartida(){
   if(!souHost) return;
   if(!confirm("Encerrar a partida para todos?")) return;
-  await api("/api/nova",{});
+  await apiSala("/nova",{});
 }
 
-// ---------- polling ----------
+// ---- polling ----
 function iniciarPoll(){
-  if(pollTimer)clearInterval(pollTimer);
+  if(pollTimer) clearInterval(pollTimer);
   poll(); pollTimer=setInterval(poll,1500);
 }
 async function poll(){
-  const st=await api("/api/estado");
-  if(!st)return; ultimoEstado=st; aplicarEstado(st);
+  if(!SALA_ID){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}return;}
+  const st=await api(`/api/sala/${SALA_ID}/estado`);
+  if(!st) return;
+  if(st.erro){
+    if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+    SALA_ID=null;NOME=null;
+    salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,null);
+    Audio2.pararMusica();
+    irHome();
+    return;
+  }
+  ultimoEstado=st;
+  aplicarEstado(st);
 }
 
 function aplicarEstado(st){
-  souHost = !!st.sou_host;
-
-  // botão de configurações some durante a partida
-  $("btn-cfg").classList.toggle("hidden", st.fase==="jogando");
-
-  // botão de encerrar: só o host, e só durante a partida
+  souHost=!!st.sou_host;
+  $("btn-cfg").classList.toggle("hidden",st.fase==="jogando");
   const be=$("btn-encerrar");
-  if(be) be.classList.toggle("hidden", !(souHost && st.fase==="jogando"));
+  if(be) be.classList.toggle("hidden",!(souHost&&st.fase==="jogando"));
 
-  // sincroniza os controles com a config da sala (outro jogador pode ter mudado)
   if(st.fase==="lobby"){
+    $("sala-lobby-nome").textContent=st.sala_nome||"";
+    $("sala-lobby-id").textContent=SALA_ID?`ID: ${SALA_ID}`:"";
+
     $("cfg-tamanho").value=st.config.tamanho;
     $("cfg-duracao").value=st.config.duracao;
-    $("cfg-modo").value=st.config.modo;
-    $("cfg-partidas").value=st.config.n_partidas;
+
+    if(st.config.modo_categoria!==catSel){
+      catSel=st.config.modo_categoria;
+      document.querySelectorAll("[data-cat]").forEach(el=>el.classList.toggle("sel",el.dataset.cat===catSel));
+    }
+    if(catSel==="competitivo"&&$("cfg-modo")) $("cfg-modo").value=st.config.modo;
+    if(st.config.n_partidas!==serieSel){
+      serieSel=st.config.n_partidas;
+      document.querySelectorAll("[data-n]").forEach(el=>el.classList.toggle("sel",+el.dataset.n===serieSel));
+    }
     if(st.config.dificuldade!==difSel){
       difSel=st.config.dificuldade;
-      document.querySelectorAll(".dif-op").forEach(el=>
-        el.classList.toggle("sel", el.dataset.d===difSel));
+      document.querySelectorAll("[data-d]").forEach(el=>el.classList.toggle("sel",el.dataset.d===difSel));
     }
     atualizarUIConfig();
 
-    // só o host mexe na configuração
-    ["cfg-tamanho","cfg-duracao","cfg-modo","cfg-partidas"].forEach(id=>{
+    // desabilitar controles para não-host
+    ["cfg-tamanho","cfg-duracao","cfg-modo"].forEach(id=>{
       const el=$(id); if(el) el.disabled=!souHost;
     });
-    document.querySelectorAll(".dif-op").forEach(el=>{
-      el.style.opacity = souHost ? "1" : ".5";
-      el.style.pointerEvents = souHost ? "auto" : "none";
+    document.querySelectorAll("[data-cat],[data-n],[data-d]").forEach(el=>{
+      el.style.opacity=souHost?"1":".5";
+      el.style.pointerEvents=souHost?"auto":"none";
     });
     const bi=$("btn-iniciar");
-    if(bi){ bi.disabled=!souHost; bi.style.opacity=souHost?"1":".5"; }
+    if(bi){bi.disabled=!souHost;bi.style.opacity=souHost?"1":".5";}
     const av=$("aviso-host");
-    if(av) av.textContent = souHost
-      ? "Você é o host: configure e inicie quando todos estiverem prontos."
-      : `Aguardando o host (${esc(st.host||"—")}) iniciar a partida.`;
+    if(av) av.textContent=souHost
+      ?"Você é o host: configure e inicie quando todos estiverem prontos."
+      :`Aguardando o host (${esc(st.host||"—")}) iniciar a partida.`;
   }
 
-  if(st.fase!==faseAtual || st.rodada!==rodadaAtual){
-    const eraJogando = faseAtual==="jogando";
+  if(st.fase!==faseAtual||st.rodada!==rodadaAtual){
+    const eraJogando=faseAtual==="jogando";
     faseAtual=st.fase; rodadaAtual=st.rodada;
-    const telaSecundaria = !$("tela-config").classList.contains("hidden") ||
-                           !$("tela-stats").classList.contains("hidden") ||
-                           !$("tela-leaderboard").classList.contains("hidden");
+    const telaSecundaria=!$("tela-config").classList.contains("hidden")||
+                         !$("tela-stats").classList.contains("hidden")||
+                         !$("tela-leaderboard").classList.contains("hidden");
     if(!telaSecundaria){
-      if(st.fase==="lobby"){ Audio2.pararMusica(); show("lobby"); }
+      if(st.fase==="lobby"){Audio2.pararMusica();show("lobby");}
       else if(st.fase==="jogando"){
-        montarGrade(st.grade, st.linhas, st.colunas);
-        mostrarRodada(st); show("jogo");
-        avisou30=false; ultimaAchada=Date.now(); ultimoEmbaralho=0;
-        Audio2.sfx("inicio"); Audio2.tocarMusica();
+        montarGrade(st.grade,st.linhas,st.colunas);
+        mostrarRodada(st);show("jogo");
+        avisou30=false;ultimaAchada=Date.now();ultimoEmbaralho=0;
+        Audio2.sfx("inicio");Audio2.tocarMusica();
       }
       else if(st.fase==="resultado"){
-        Audio2.pararMusica(); if(eraJogando)Audio2.sfx("fim");
-        mostrarResultado(st); show("resultado");
+        Audio2.pararMusica();if(eraJogando)Audio2.sfx("fim");
+        mostrarResultado(st);show("resultado");
       }
       else if(st.fase==="fim_campeonato"){
-        Audio2.pararMusica(); if(eraJogando)Audio2.sfx("vitoria");
-        mostrarFim(st); show("fim");
+        Audio2.pararMusica();if(eraJogando)Audio2.sfx("vitoria");
+        mostrarFim(st);show("fim");
       }
     }
   }
+
   if(st.fase==="lobby"){
     $("qtd").textContent=st.jogadores.length;
     $("lista-j").innerHTML=st.jogadores.map(j=>{
@@ -777,84 +826,78 @@ function aplicarEstado(st){
       return `<span class="badge">${esc(j.nome)}${host}${tt}</span>`;
     }).join("");
   }
+
   if(st.fase==="jogando"){
     const modo=st.config.modo;
+    const cooperativo=st.config.modo_categoria==="cooperativo";
 
-    // ----- tabuleiro pode ter mudado (sobrevivência troca/embaralha) -----
-    const mudouDim = st.linhas!==LINHAS || st.colunas!==COLUNAS;
-    const mudouLetras = st.grade.length===letters.length &&
-                        st.grade.some((L,i)=>L!==letters[i]);
+    const mudouDim=st.linhas!==LINHAS||st.colunas!==COLUNAS;
+    const mudouLetras=st.grade.length===letters.length&&st.grade.some((L,i)=>L!==letters[i]);
     if(mudouDim){
-      // cresce preservando as letras existentes; só as novas "surgem", devagar
-      crescerGrade(st.grade, st.linhas, st.colunas, st.celulas_novas||[]);
+      crescerGrade(st.grade,st.linhas,st.colunas,st.celulas_novas||[]);
       faixaAviso("⬆️ O tabuleiro cresceu!");
       Audio2.sfx("inicio");
-      setTimeout(()=>faixaAviso(null), 4000);
-    } else if(mudouLetras){
+      setTimeout(()=>faixaAviso(null),4000);
+    }else if(mudouLetras){
       atualizarLetras(st.grade);
     }
 
-    // ----- aviso de embaralhamento: peças piscando amarelo -----
     if(st.embaralhou_ha!=null){
       if(ultimoEmbaralho!==st.embaralhou_ha){
-        if(ultimoEmbaralho===0 || st.embaralhou_ha < ultimoEmbaralho) Audio2.sfx("tique");
+        if(ultimoEmbaralho===0||st.embaralhou_ha<ultimoEmbaralho) Audio2.sfx("tique");
         ultimoEmbaralho=st.embaralhou_ha;
       }
       cells.forEach(c=>c.classList.add("embaralhou"));
       faixaAviso("⚠️ As letras trocaram de lugar!");
-    } else {
+    }else{
       ultimoEmbaralho=0;
       cells.forEach(c=>c.classList.remove("embaralhou"));
       if($("faixa-aviso").textContent.indexOf("trocaram")>=0) faixaAviso(null);
     }
 
-    // ----- relógio -----
     if(modo==="caca"){
       $("timer").textContent="∞";
       $("timer").style.color="";
       alertaTempo(false);
       Audio2.setAcelerado(false);
-    } else {
-      const m=st.restante/60|0, s=String(st.restante%60).padStart(2,"0");
+    }else{
+      const m=st.restante/60|0,s=String(st.restante%60).padStart(2,"0");
       $("timer").textContent=m+":"+s;
-      $("timer").style.color = st.restante<=30 ? "var(--vermelho)" : "";
-      $("timer").classList.toggle("urgente", st.restante<=15 && st.restante>0);
-      if(st.restante<=30 && st.restante>0){
-        if(!avisou30){ avisou30=true; Audio2.sfx("tique"); }
+      $("timer").style.color=st.restante<=30?"var(--vermelho)":"";
+      $("timer").classList.toggle("urgente",st.restante<=15&&st.restante>0);
+      if(st.restante<=30&&st.restante>0){
+        if(!avisou30){avisou30=true;Audio2.sfx("tique");}
         Audio2.setAcelerado(true);
-      } else if(st.restante>30){
-        avisou30=false;
-        Audio2.setAcelerado(false);
+      }else if(st.restante>30){
+        avisou30=false;Audio2.setAcelerado(false);
       }
-      alertaTempo(st.restante<=15 && st.restante>0);
+      alertaTempo(st.restante<=15&&st.restante>0);
     }
 
-    // ----- progresso (caça completa) -----
-    const temProg = modo==="caca" && st.progresso;
-    $("prog-box").classList.toggle("hidden", !temProg);
+    const temProg=modo==="caca"&&st.progresso;
+    $("prog-box").classList.toggle("hidden",!temProg);
     if(temProg){
-      const {achadas,total}=st.progresso;
+      const{achadas,total}=st.progresso;
+      $("prog-lbl").textContent=cooperativo?"Palavras encontradas (grupo)":"Palavras encontradas";
       $("prog-num").textContent=`${achadas}/${total}`;
       const fill=$("prog-fill");
-      fill.style.width = total ? (achadas/total*100)+"%" : "0%";
+      fill.style.width=total?(achadas/total*100)+"%":"0%";
       if(achadas>ultimoProg){
-        fill.classList.remove("subiu"); void fill.offsetWidth; fill.classList.add("subiu");
+        fill.classList.remove("subiu");void fill.offsetWidth;fill.classList.add("subiu");
       }
       ultimoProg=achadas;
     }
 
-    // ----- botão de dica (individual, times, caça) -----
-    const temDica = ["individual","times","caca"].includes(modo);
-    $("dica-box").classList.toggle("hidden", !temDica);
+    const temDica=["individual","times","caca"].includes(modo);
+    $("dica-box").classList.toggle("hidden",!temDica);
     if(temDica) atualizarBotaoDica();
 
-    // ----- lista do sobrevivência (quem está vivo e com quanto tempo) -----
-    const temSurv = modo==="sobrevivencia";
-    $("surv-box").classList.toggle("hidden", !temSurv);
+    const temSurv=modo==="sobrevivencia";
+    $("surv-box").classList.toggle("hidden",!temSurv);
     if(temSurv){
       $("surv-box").innerHTML=st.jogadores.map(j=>{
-        const mm=(j.restante/60|0), ss=String(j.restante%60).padStart(2,"0");
-        const t = j.vivo ? `${mm}:${ss}` : "eliminado";
+        const mm=(j.restante/60|0),ss=String(j.restante%60).padStart(2,"0");
+        const t=j.vivo?`${mm}:${ss}`:"eliminado";
         return `<div class="surv-linha${j.vivo?"":" morto"}">
           <span class="n">${esc(j.nome)}</span>
           <span>${j.palavras} pal.</span>
@@ -863,8 +906,8 @@ function aplicarEstado(st){
       if(!st.vivo) msg("Seu tempo acabou!","var(--vermelho)");
     }
 
-    sincronizarPalavras(st.minhas_palavras);
-  } else {
+    sincronizarPalavras(st);
+  }else{
     alertaTempo(false);
     $("prog-box").classList.add("hidden");
     $("dica-box").classList.add("hidden");
@@ -875,35 +918,32 @@ function aplicarEstado(st){
 
 function faixaAviso(txt){
   const el=$("faixa-aviso");
-  if(!txt){ el.classList.add("hidden"); el.textContent=""; return; }
-  el.textContent=txt; el.classList.remove("hidden");
+  if(!txt){el.classList.add("hidden");el.textContent="";return;}
+  el.textContent=txt;el.classList.remove("hidden");
 }
-
-function alertaTempo(on){
-  $("alerta-tempo").classList.toggle("on", !!on);
-}
+function alertaTempo(on){$("alerta-tempo").classList.toggle("on",!!on);}
 
 function mostrarRodada(st){
   const np=st.config.n_partidas;
   const dif={facil:"fácil",medio:"médio",dificil:"difícil"}[st.config.dificuldade]||"";
-  const nomeModo={individual:"",times:"Times",
-                  sobrevivencia:"Sobrevivência",caca:"Caça completa"}[st.config.modo]||"";
-  // sem contagem de palavras aqui: seria spoiler durante a partida
-  let txt = np>1 ? `Partida ${st.rodada} de ${np}` : `Nível ${dif}`;
-  if(nomeModo) txt = nomeModo + " · " + txt;
-  $("rodada-tag").textContent = txt;
+  const cooperativo=st.config.modo_categoria==="cooperativo";
+  const nomeModo={
+    individual:"Free-for-all",times:"Times",
+    sobrevivencia:"Sobrevivência",
+    caca:cooperativo?"Cooperativo":"Caça"
+  }[st.config.modo]||"";
+  let txt=np>1?`Série: 1ª a ${np}`:`Nível ${dif}`;
+  if(nomeModo) txt=nomeModo+" · "+txt;
+  $("rodada-tag").textContent=txt;
 }
 
-// ---------- tabuleiro ----------
-// LINHAS x COLUNAS (o sobrevivência usa grades retangulares, ex.: 4x6)
-let LINHAS=4, COLUNAS=4;
-
-function montarGrade(grade, linhas, colunas){
-  COLUNAS = colunas || Math.round(Math.sqrt(grade.length));
-  LINHAS  = linhas  || Math.round(grade.length / COLUNAS);
-  N = COLUNAS;  // compatibilidade
-  letters=grade.slice(); path=[]; cells=[];
-  $("score").textContent="0"; $("found").innerHTML=""; $("current").innerHTML="&nbsp;";
+// ---- tabuleiro ----
+let LINHAS=4,COLUNAS=4;
+function montarGrade(grade,linhas,colunas){
+  COLUNAS=colunas||Math.round(Math.sqrt(grade.length));
+  LINHAS=linhas||Math.round(grade.length/COLUNAS);
+  N=COLUNAS; letters=grade.slice(); path=[]; cells=[];
+  $("score").textContent="0";$("found").innerHTML="";$("current").innerHTML="&nbsp;";
   $("msg").textContent="Arraste pra conectar letras";
   const b=$("board");
   b.style.gridTemplateColumns=`repeat(${COLUNAS},1fr)`;
@@ -911,22 +951,15 @@ function montarGrade(grade, linhas, colunas){
   b.innerHTML="";
   letters.forEach((L,i)=>{
     const d=document.createElement("div");
-    d.className="cell entrando"; d.textContent=L; d.dataset.i=i;
-    d.style.fontSize=fs+"px";
-    // cascata: cada célula entra com um atrasinho, dá sensação de "montando"
-    d.style.animationDelay=(i*18)+"ms";
-    b.appendChild(d); cells.push(d);
+    d.className="cell entrando";d.textContent=L;d.dataset.i=i;
+    d.style.fontSize=fs+"px";d.style.animationDelay=(i*18)+"ms";
+    b.appendChild(d);cells.push(d);
   });
-  setTimeout(()=>cells.forEach(c=>{
-    c.classList.remove("entrando"); c.style.animationDelay="";
-  }), 900);
+  setTimeout(()=>cells.forEach(c=>{c.classList.remove("entrando");c.style.animationDelay="";}),900);
 }
-
-// cresce o tabuleiro preservando as letras: só as novas células "surgem"
-function crescerGrade(grade, linhas, colunas, novas){
-  const antigasCells = cells.slice();
-  COLUNAS=colunas; LINHAS=linhas; N=colunas;
-  letters=grade.slice(); path=[]; cells=[];
+function crescerGrade(grade,linhas,colunas,novas){
+  COLUNAS=colunas;LINHAS=linhas;N=colunas;
+  letters=grade.slice();path=[];cells=[];
   const b=$("board");
   b.style.gridTemplateColumns=`repeat(${COLUNAS},1fr)`;
   const fs=Math.max(13,Math.round(120/Math.max(LINHAS,COLUNAS)));
@@ -935,26 +968,19 @@ function crescerGrade(grade, linhas, colunas, novas){
   letters.forEach((L,i)=>{
     const d=document.createElement("div");
     d.className="cell"+(setNovas.has(i)?" nova":"");
-    d.textContent=L; d.dataset.i=i;
-    d.style.fontSize=fs+"px";
-    if(setNovas.has(i)){
-      // entrada escalonada e LENTA, pra dar tempo de acompanhar
-      d.style.animationDelay=(140+[...setNovas].indexOf(i)*90)+"ms";
-    }
-    b.appendChild(d); cells.push(d);
+    d.textContent=L;d.dataset.i=i;d.style.fontSize=fs+"px";
+    if(setNovas.has(i)) d.style.animationDelay=(140+[...setNovas].indexOf(i)*90)+"ms";
+    b.appendChild(d);cells.push(d);
   });
-  setTimeout(()=>cells.forEach(c=>{
-    c.classList.remove("nova"); c.style.animationDelay="";
-  }), 3000);
+  setTimeout(()=>cells.forEach(c=>{c.classList.remove("nova");c.style.animationDelay="";}),3000);
 }
-// atualiza só as letras, sem remontar (usado no embaralhamento)
 function atualizarLetras(grade){
   letters=grade.slice();
-  cells.forEach((c,i)=>{ c.textContent=letters[i]; });
-  path=[]; hl();
+  cells.forEach((c,i)=>{c.textContent=letters[i];});
+  path=[];hl();
 }
 function neigh(a,bb){
-  const ra=a/COLUNAS|0, ca=a%COLUNAS, rb=bb/COLUNAS|0, cb=bb%COLUNAS;
+  const ra=a/COLUNAS|0,ca=a%COLUNAS,rb=bb/COLUNAS|0,cb=bb%COLUNAS;
   return Math.abs(ra-rb)<=1&&Math.abs(ca-cb)<=1&&a!==bb;
 }
 function hl(){
@@ -965,156 +991,137 @@ function hl(){
 function addCell(i){
   if(path.includes(i))return;
   if(path.length&&!neigh(path[path.length-1],i))return;
-  path.push(i); hl(); Audio2.sfx("select");
+  path.push(i);hl();Audio2.sfx("select");
   const el=$("current");
-  el.classList.remove("cresceu"); void el.offsetWidth; el.classList.add("cresceu");
+  el.classList.remove("cresceu");void el.offsetWidth;el.classList.add("cresceu");
 }
-
-/* Detecção por proximidade do CENTRO da célula.
-   Antes bastava tocar em qualquer ponto da célula, então passar de raspão
-   pelo canto já selecionava a letra — o problema das diagonais. */
 let TOLERANCIA=0.62;
 function idxAt(x,y){
   const el=document.elementFromPoint(x,y);
   if(!el||!el.classList.contains("cell"))return -1;
   const r=el.getBoundingClientRect();
-  const cx=r.left+r.width/2, cy=r.top+r.height/2;
-  const dx=x-cx, dy=y-cy;
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const dx=x-cx,dy=y-cy;
   const raio=Math.min(r.width,r.height)/2*TOLERANCIA;
   if(dx*dx+dy*dy>raio*raio)return -1;
-  return +el.dataset.i;
+  return+el.dataset.i;
 }
 function aplicarTolerancia(){
   TOLERANCIA=(+$("vol-tol").value)/100;
   try{localStorage.setItem("bg_tol",TOLERANCIA);}catch(e){}
 }
-
-let ultimoX=null, ultimoY=null;
+let ultimoX=null,ultimoY=null;
 document.addEventListener("pointerdown",e=>{
   if(faseAtual!=="jogando")return;
-  const el=e.target.closest(".cell"); if(!el)return;
-  e.preventDefault(); down=true; path=[];
+  const el=e.target.closest(".cell");if(!el)return;
+  e.preventDefault();down=true;path=[];
   const i=idxAt(e.clientX,e.clientY);
   addCell(i>=0?i:+el.dataset.i);
-  ultimoX=e.clientX; ultimoY=e.clientY;
+  ultimoX=e.clientX;ultimoY=e.clientY;
 });
 document.addEventListener("pointermove",e=>{
-  if(!down)return; e.preventDefault();
-  // interpola: em arrasto rápido o navegador pula pixels e perderíamos letras
+  if(!down)return;e.preventDefault();
   if(ultimoX!==null){
-    const dx=e.clientX-ultimoX, dy=e.clientY-ultimoY;
+    const dx=e.clientX-ultimoX,dy=e.clientY-ultimoY;
     const passos=Math.min(12,Math.max(1,Math.round(Math.hypot(dx,dy)/8)));
     for(let s=1;s<=passos;s++){
-      const i=idxAt(ultimoX+dx*s/passos, ultimoY+dy*s/passos);
+      const i=idxAt(ultimoX+dx*s/passos,ultimoY+dy*s/passos);
       if(i>=0)addCell(i);
     }
   }else{
-    const i=idxAt(e.clientX,e.clientY); if(i>=0)addCell(i);
+    const i=idxAt(e.clientX,e.clientY);if(i>=0)addCell(i);
   }
-  ultimoX=e.clientX; ultimoY=e.clientY;
+  ultimoX=e.clientX;ultimoY=e.clientY;
 });
-document.addEventListener("pointerup",()=>{
-  if(down){down=false; ultimoX=ultimoY=null; finalizar();}
-});
+document.addEventListener("pointerup",()=>{if(down){down=false;ultimoX=ultimoY=null;finalizar();}});
 
 function animarBoard(classe){
   const b=$("board");
-  b.classList.remove("ok","erro"); void b.offsetWidth; b.classList.add(classe);
-  setTimeout(()=>b.classList.remove(classe), 600);
+  b.classList.remove("ok","erro");void b.offsetWidth;b.classList.add(classe);
+  setTimeout(()=>b.classList.remove(classe),600);
 }
 function flutuarGanho(txt){
   const el=document.createElement("div");
-  el.className="ganho-tempo"; el.textContent=txt;
+  el.className="ganho-tempo";el.textContent=txt;
   document.querySelector(".stats").appendChild(el);
-  setTimeout(()=>el.remove(), 1200);
+  setTimeout(()=>el.remove(),1200);
 }
 
 async function finalizar(){
   if(path.length>=3){
-    const r=await api("/api/submeter",{caminho:path});
+    const r=await apiSala("/submeter",{caminho:path});
     if(r&&r.ok){
-      if(r.repetida){ msg("Já tinha essa","#b0a48c"); Audio2.sfx("repetida"); }
-      else {
-        const bonus = r.ganho_tempo ? `  +${r.ganho_tempo}s` : "";
+      if(r.repetida){msg("Já tinha essa","#b0a48c");Audio2.sfx("repetida");}
+      else{
+        const bonus=r.ganho_tempo?`  +${r.ganho_tempo}s`:"";
         msg("✓ "+r.palavra+bonus,"var(--verde)");
-        Audio2.sfx("valida");
-        animarBoard("ok");
+        Audio2.sfx("valida");animarBoard("ok");
         if(r.ganho_tempo) flutuarGanho("+"+r.ganho_tempo+"s");
         ultimaAchada=Date.now();
         $("dica-txt").textContent="";
         $("dica-txt").classList.remove("revelou");
       }
     }else if(r){
-      msg(r.motivo==="sem tempo" ? "Seu tempo acabou!" : "Não vale","#a05a3c");
-      Audio2.sfx("invalida");
-      animarBoard("erro");
+      msg(r.motivo==="sem tempo"?"Seu tempo acabou!":"Não vale","#a05a3c");
+      Audio2.sfx("invalida");animarBoard("erro");
     }
   }
-  path=[]; hl();
+  path=[];hl();
 }
-function msg(t,c){$("msg").textContent=t; $("msg").style.color=c||"#7a6b55";}
-let palavrasAnteriores=new Set();
-function sincronizarPalavras(lista){
-  // marca as que acabaram de aparecer, pra animar só elas
+function msg(t,c){$("msg").textContent=t;$("msg").style.color=c||"#7a6b55";}
+
+function sincronizarPalavras(st){
+  const cooperativo=st.config?.modo_categoria==="cooperativo";
+  const lista=cooperativo&&st.palavras_coletivas?st.palavras_coletivas:(st.minhas_palavras||[]);
+  const minhasSet=cooperativo?new Set(st.minhas_palavras||[]):null;
   const novas=lista.filter(w=>!palavrasAnteriores.has(w));
-  $("found").innerHTML=lista.map(w=>
-    `<span class="chip${novas.includes(w)?" novo":""}">${esc(w)}</span>`).join("");
+  $("found").innerHTML=lista.map(w=>{
+    const eu=minhasSet&&minhasSet.has(w)?" minha":"";
+    const novo=novas.includes(w)?" novo":"";
+    return `<span class="chip${eu}${novo}">${esc(w)}</span>`;
+  }).join("");
   palavrasAnteriores=new Set(lista);
-  let s=0; for(const w of lista) s+=w.length;
+  let s=0;for(const w of lista) s+=w.length;
   const el=$("score");
-  if(el.textContent!==String(s) && novas.length){
-    el.classList.remove("cresceu"); void el.offsetWidth; el.classList.add("cresceu");
+  if(el.textContent!==String(s)&&novas.length){
+    el.classList.remove("cresceu");void el.offsetWidth;el.classList.add("cresceu");
   }
   el.textContent=s;
 }
 
-// ---------- dicas ----------
-function segundosParaDica(){
-  return Math.max(0, Math.ceil((DICA_ESPERA-(Date.now()-ultimaAchada))/1000));
-}
+// ---- dicas ----
+function segundosParaDica(){return Math.max(0,Math.ceil((DICA_ESPERA-(Date.now()-ultimaAchada))/1000));}
 function atualizarBotaoDica(){
   const btn=$("btn-dica");
   const falta=segundosParaDica();
-  if(falta>0){
-    btn.disabled=true;
-    btn.textContent=`💡 Dica em ${falta}s`;
-  } else {
-    btn.disabled=false;
-    btn.textContent="💡 Dica";
-  }
+  if(falta>0){btn.disabled=true;btn.textContent=`💡 Dica em ${falta}s`;}
+  else{btn.disabled=false;btn.textContent="💡 Dica";}
 }
 async function pedirDica(){
   if(segundosParaDica()>0)return;
-  const r=await api("/api/dica",{});
-  if(!r||!r.ok){ $("dica-txt").textContent=""; return; }
-  if(!r.palavra){
-    $("dica-txt").textContent="Você já achou todas as de 3 letras!";
-  } else {
-    $("dica-txt").textContent=r.palavra;
-    Audio2.sfx("select");
-  }
-  // consumir a dica reinicia a espera
+  const r=await apiSala("/dica",{});
+  if(!r||!r.ok){$("dica-txt").textContent="";return;}
+  if(!r.palavra){$("dica-txt").textContent="Você já achou todas as de 3 letras!";}
+  else{$("dica-txt").textContent=r.palavra;Audio2.sfx("select");}
   ultimaAchada=Date.now();
   atualizarBotaoDica();
 }
 
-// ---------- resultado ----------
+// ---- resultado ----
 function ordenarIndividual(placar){
-  return Object.entries(placar).map(([nome,d])=>({nome,...d}))
-    .sort((a,b)=>b.pontos-a.pontos);
+  return Object.entries(placar).map(([nome,d])=>({nome,...d})).sort((a,b)=>b.pontos-a.pontos);
 }
 function medalha(pos){return pos===0?"🥇":pos===1?"🥈":pos===2?"🥉":`${pos+1}º`;}
 
 function blocoMeuResultado(st){
   const eu=st.placar[NOME];
-  if(!eu) return `<div class="rot">Sua pontuação</div><div class="pts-grande">—</div>
-                  <div class="detalhe">Você não pontuou nesta partida.</div>`;
+  if(!eu)return`<div class="rot">Sua pontuação</div><div class="pts-grande">—</div><div class="detalhe">Você não pontuou nesta partida.</div>`;
   const arr=ordenarIndividual(st.placar);
   const pos=arr.findIndex(p=>p.nome===NOME);
   const ptsExc=eu.exclusivas.reduce((s,w)=>s+w.length*2,0);
   const ptsRep=eu.repetidas.reduce((s,w)=>s+w.length,0);
   const total=eu.exclusivas.length+eu.repetidas.length;
-  return `
+  return`
     <div class="rot">Sua pontuação</div>
     <div class="pts-grande">${eu.pontos}</div>
     <div class="pos-medalha">${medalha(pos)} de ${arr.length} jogadores</div>
@@ -1124,65 +1131,50 @@ function blocoMeuResultado(st){
       <div><div class="n">${eu.repetidas.length}</div><div class="l">repetidas (${ptsRep}pts)</div></div>
     </div>`;
 }
-
-function blocoPlacarIndividual(placar, times){
+function blocoPlacarIndividual(placar,times){
   return ordenarIndividual(placar).map((p,i)=>{
     const tb=times&&times[p.nome]?` <span class="time-badge">${esc(times[p.nome])}</span>`:"";
     const exc=p.exclusivas.map(w=>`<span class="chip exc">${esc(w)} ·${w.length*2}</span>`).join("");
     const rep=p.repetidas.map(w=>`<span class="chip rep">${esc(w)} ·${w.length}</span>`).join("");
     const eu=p.nome===NOME?" eu":"";
-    return `<div class="plinha${eu}"><span class="nome">${medalha(i)} ${esc(p.nome)}${tb}</span>
+    return`<div class="plinha${eu}"><span class="nome">${medalha(i)} ${esc(p.nome)}${tb}</span>
       <span class="pts">${p.pontos} pts</span></div>
       <div class="chips" style="margin:6px 0 10px">${exc}${rep}</div>`;
   }).join("");
 }
-
 function blocoRanking(st){
   const r=st.ranking||{};
-  const arr=Object.entries(r).map(([nome,d])=>({nome,...d}))
-    .sort((a,b)=>b.melhor-a.melhor);
-  if(!arr.length)return "";
-  return `<h3>Recordes da sessão</h3>`+arr.map((p,i)=>`
+  const arr=Object.entries(r).map(([nome,d])=>({nome,...d})).sort((a,b)=>b.melhor-a.melhor);
+  if(!arr.length)return"";
+  return`<h3>Recordes da sessão</h3>`+arr.map((p,i)=>`
     <div class="rank-linha">
       <div class="rank-pos">${medalha(i)}</div>
       <div class="rank-nome">${esc(p.nome)}${p.nome===NOME?" (você)":""}</div>
       <div class="rank-vals"><b>${p.melhor}</b> recorde<br>${p.total} total · ${p.partidas} jogo(s)</div>
     </div>`).join("");
 }
-
-function timesDosJogadores(st){
-  const m={}; (st.jogadores||[]).forEach(j=>m[j.nome]=j.time); return m;
+function timesDosJogadores(st){const m={};(st.jogadores||[]).forEach(j=>m[j.nome]=j.time);return m;}
+const secoesFechadas=new Set(JSON.parse(localStorage.getItem("bg_fechadas")||"[]"));
+function tituloSecao(id,texto){
+  const fechado=secoesFechadas.has(id)?" fechado":"";
+  return`<div class="secao-tit${fechado}" onclick="toggleSecao('${id}')"><span>${texto}</span><span class="seta">▾</span></div>`;
 }
-
-// ---------- seções retráteis ----------
-const secoesFechadas = new Set(JSON.parse(localStorage.getItem("bg_fechadas")||"[]"));
-function tituloSecao(id, texto){
-  const fechado = secoesFechadas.has(id) ? " fechado" : "";
-  return `<div class="secao-tit${fechado}" onclick="toggleSecao('${id}')">
-            <span>${texto}</span><span class="seta">▾</span>
-          </div>`;
-}
-function corpoSecao(id, html){
-  const fechado = secoesFechadas.has(id) ? " fechado" : "";
-  return `<div class="secao-corpo${fechado}" data-sec="${id}">${html}</div>`;
+function corpoSecao(id,html){
+  const fechado=secoesFechadas.has(id)?" fechado":"";
+  return`<div class="secao-corpo${fechado}" data-sec="${id}">${html}</div>`;
 }
 function toggleSecao(id){
-  if(secoesFechadas.has(id)) secoesFechadas.delete(id);
-  else secoesFechadas.add(id);
-  try{ localStorage.setItem("bg_fechadas", JSON.stringify([...secoesFechadas])); }catch(e){}
-  document.querySelectorAll(`[data-sec="${id}"]`).forEach(el=>
-    el.classList.toggle("fechado", secoesFechadas.has(id)));
+  if(secoesFechadas.has(id))secoesFechadas.delete(id);else secoesFechadas.add(id);
+  try{localStorage.setItem("bg_fechadas",JSON.stringify([...secoesFechadas]));}catch(e){}
+  document.querySelectorAll(`[data-sec="${id}"]`).forEach(el=>el.classList.toggle("fechado",secoesFechadas.has(id)));
   document.querySelectorAll(".secao-tit").forEach(t=>{
-    if(t.getAttribute("onclick")===`toggleSecao('${id}')`)
-      t.classList.toggle("fechado", secoesFechadas.has(id));
+    if(t.getAttribute("onclick")===`toggleSecao('${id}')`) t.classList.toggle("fechado",secoesFechadas.has(id));
   });
 }
-
-// ---------- resumo da grade (o que existia vs o que acharam) ----------
 function blocoResumo(st){
   const r=st.resumo;
-  if(!r||!r.total) return "";
-  return `<h3>Resumo do tabuleiro</h3>
+  if(!r||!r.total)return"";
+  return`<h3>Resumo do tabuleiro</h3>
     <div class="resumo-grid">
       <div><div class="n">${r.total}</div><div class="l">tinha</div></div>
       <div><div class="n">${r.achadas}</div><div class="l">acharam</div></div>
@@ -1193,177 +1185,126 @@ function blocoResumo(st){
       <div class="w">${esc(r.maior)}</div>
     </div>`;
 }
-
-// ---------- log das últimas partidas ----------
 function blocoHistorico(st){
   const h=(st.historico||[]).slice().reverse();
-  if(!h.length) return "";
+  if(!h.length)return"";
   const linhas=h.map(x=>{
-    const nome = st.config.modo==="times" ? `Time ${esc(x.vencedor)}` : esc(x.vencedor);
-    return `<div class="hist-linha">
-      <div class="hist-num">#${x.rodada}</div>
-      <div class="hist-venc">${nome}</div>
-      <div class="hist-pts">${x.pontos} pts</div>
-    </div>`;
+    const nome=st.config.modo==="times"?`Time ${esc(x.vencedor)}`:esc(x.vencedor);
+    return`<div class="hist-linha"><div class="hist-num">#${x.rodada}</div><div class="hist-venc">${nome}</div><div class="hist-pts">${x.pontos} pts</div></div>`;
   }).join("");
   return tituloSecao("hist","Últimas partidas")+corpoSecao("hist",linhas);
 }
-
-// ---------- todas as palavras do tabuleiro ----------
 function blocoTodasPalavras(st){
   const r=st.resumo;
-  if(!r||!r.total) return "";
-  const achadas=(r.achadas_lista||[]).map(w=>
-    `<span class="chip">${esc(w)} ·${w.length}</span>`).join("");
-  const perdidas=(r.faltaram_lista||[]).map(w=>
-    `<span class="chip perdida">${esc(w)} ·${w.length}</span>`).join("");
-  const extra = r.faltaram > (r.faltaram_lista||[]).length
-    ? `<div class="aviso left">+${r.faltaram-(r.faltaram_lista||[]).length} outras não mostradas.</div>` : "";
+  if(!r||!r.total)return"";
+  const achadas=(r.achadas_lista||[]).map(w=>`<span class="chip">${esc(w)} ·${w.length}</span>`).join("");
+  const perdidas=(r.faltaram_lista||[]).map(w=>`<span class="chip perdida">${esc(w)} ·${w.length}</span>`).join("");
+  const extra=r.faltaram>(r.faltaram_lista||[]).length?`<div class="aviso left">+${r.faltaram-(r.faltaram_lista||[]).length} outras não mostradas.</div>`:"";
   const corpo=`
     <div class="aviso left" style="margin-top:0">Encontradas pelo grupo (${r.achadas})</div>
     <div class="chips" style="margin:8px 0 14px">${achadas||'<span class="aviso">Nenhuma.</span>'}</div>
     <div class="aviso left">Que ninguém achou (${r.faltaram})</div>
-    <div class="chips" style="margin-top:8px">${perdidas||'<span class="aviso">Nenhuma — acharam tudo!</span>'}</div>
-    ${extra}`;
+    <div class="chips" style="margin-top:8px">${perdidas||'<span class="aviso">Nenhuma — acharam tudo!</span>'}</div>${extra}`;
   return tituloSecao("todas","Palavras do tabuleiro")+corpoSecao("todas",corpo);
 }
-
 function mostrarResultado(st){
   const np=st.config.n_partidas;
-  $("res-rodada").textContent = np>1?`Fim da partida ${st.rodada} de ${np}`:"Fim da partida";
+  $("res-rodada").textContent=np>1?`Partida ${st.rodada} · primeiro a ${np} vitórias`:"Fim da partida";
   $("meu-res").innerHTML=blocoMeuResultado(st);
-
-  // resumo do tabuleiro (tinha / acharam / faltaram + maior palavra)
   const res=blocoResumo(st);
-  $("resumo-box").innerHTML=res;
-  $("resumo-box").classList.toggle("hidden",!res);
-
-  // placar de vitórias só faz sentido em melhor-de-3 ou mais
-  const temSets=np>=3;
+  $("resumo-box").innerHTML=res;$("resumo-box").classList.toggle("hidden",!res);
+  const temSets=np>1;
   $("sets-box").classList.toggle("hidden",!temSets);
   if(temSets){
     const arr=Object.entries(st.vitorias).sort((a,b)=>b[1]-a[1]);
-    $("sets-box").innerHTML=`<h3>Vitórias no campeonato</h3><div class="sets">`+
+    $("sets-box").innerHTML=`<h3>Vitórias na série</h3><div class="sets">`+
       arr.map(([k,v])=>`<div class="set-item"><div class="n">${v}</div><div class="l">${esc(k)}</div></div>`).join("")+
       `</div>`;
   }
-
   let html="";
   if(st.config.modo==="times"){
     const arrT=Object.entries(st.placar_times).sort((a,b)=>b[1]-a[1]);
     html+=`<h3>Placar dos times</h3>`+arrT.map(([t,p],i)=>
       `<div class="plinha"><span class="nome">${medalha(i)} Time ${esc(t)}</span><span class="pts">${p} pts</span></div>`).join("");
     html+=`<h3 class="mt">Por jogador</h3>`;
-  } else {
-    html+=`<h3>Placar da partida</h3>`;
-  }
+  }else{html+=`<h3>Placar da partida</h3>`;}
   html+=blocoPlacarIndividual(st.placar,timesDosJogadores(st));
   $("placar").innerHTML=html;
-
-  const rk=blocoRanking(st);
-  $("rank-box").innerHTML=rk;
-  $("rank-box").classList.toggle("hidden",!rk);
-
-  const hb=blocoHistorico(st);
-  $("hist-box").innerHTML=hb;
-  $("hist-box").classList.toggle("hidden",!hb);
-
-  const tp=blocoTodasPalavras(st);
-  $("todas-box").innerHTML=tp;
-  $("todas-box").classList.toggle("hidden",!tp);
+  const rk=blocoRanking(st);$("rank-box").innerHTML=rk;$("rank-box").classList.toggle("hidden",!rk);
+  const hb=blocoHistorico(st);$("hist-box").innerHTML=hb;$("hist-box").classList.toggle("hidden",!hb);
+  const tp=blocoTodasPalavras(st);$("todas-box").innerHTML=tp;$("todas-box").classList.toggle("hidden",!tp);
 }
-
 function mostrarFim(st){
   const arr=Object.entries(st.vitorias).sort((a,b)=>b[1]-a[1]);
-  if(arr.length){
+  const cooperativo=st.config.modo_categoria==="cooperativo";
+  if(cooperativo){
+    const achadas=st.resumo?.achadas||0,total=st.resumo?.total||0;
+    $("fim-venc").textContent=(total>0&&achadas>=total)?"🎉 Completaram tudo!":"🤝 Missão encerrada";
+  }else if(arr.length){
     const rot=st.config.modo==="times"?`Time ${esc(arr[0][0])}`:esc(arr[0][0]);
     $("fim-venc").textContent=`🏆 Campeão: ${rot}`;
-  }else $("fim-venc").textContent="Campeonato encerrado";
-
+  }else $("fim-venc").textContent="Série encerrada";
   $("fim-meu").innerHTML=blocoMeuResultado(st);
-
-  const res=blocoResumo(st);
-  $("fim-resumo").innerHTML=res;
-  $("fim-resumo").classList.toggle("hidden",!res);
-
-  // placar de vitórias só em melhor-de-3 ou mais
-  const temSets=st.config.n_partidas>=3;
+  const res=blocoResumo(st);$("fim-resumo").innerHTML=res;$("fim-resumo").classList.toggle("hidden",!res);
+  const temSets=st.config.n_partidas>1;
   $("fim-sets").classList.toggle("hidden",!temSets);
   if(temSets){
     $("fim-sets").innerHTML=`<h3>Placar final (vitórias)</h3>`+
-      arr.map(([k,v],i)=>`<div class="plinha"><span class="nome">${medalha(i)} ${esc(k)}</span>
-        <span class="pts">${v} vitória(s)</span></div>`).join("");
+      arr.map(([k,v],i)=>`<div class="plinha"><span class="nome">${medalha(i)} ${esc(k)}</span><span class="pts">${v} vitória(s)</span></div>`).join("");
   }
-
-  const rk=blocoRanking(st);
-  $("fim-rank").innerHTML=rk;
-  $("fim-rank").classList.toggle("hidden",!rk);
-
-  const hb=blocoHistorico(st);
-  $("fim-placar").innerHTML=hb;
-  $("fim-placar").classList.toggle("hidden",!hb);
-
-  const tp=blocoTodasPalavras(st);
-  $("fim-todas").innerHTML=tp;
-  $("fim-todas").classList.toggle("hidden",!tp);
+  const rk=blocoRanking(st);$("fim-rank").innerHTML=rk;$("fim-rank").classList.toggle("hidden",!rk);
+  const hb=blocoHistorico(st);$("fim-placar").innerHTML=hb;$("fim-placar").classList.toggle("hidden",!hb);
+  const tp=blocoTodasPalavras(st);$("fim-todas").innerHTML=tp;$("fim-todas").classList.toggle("hidden",!tp);
 }
 
-// ---------- leaderboard ----------
+// ---- leaderboard ----
 const LB_CATS=[
-  {key:"best_score",      fmt:(v)=>`${v} pts`,              sub:null},
-  {key:"total_wins",      fmt:(v,r)=>`${v} vitória${v!=1?'s':''}`, sub:r=>`${r.total_games} partida${r.total_games!=1?'s':''}`},
-  {key:"longest_word_len",fmt:(v,r)=>r.longest_word?`${esc(r.longest_word)} · ${v} letras`:`${v} letras`, sub:null},
-  {key:"words_per_second",fmt:(v)=>`${(+v).toFixed(3)} pal/s`, sub:r=>`${r.total_words_found} palavras`},
-  {key:"total_words_found",fmt:(v)=>`${v} palavras`,        sub:r=>`${r.total_games} partida${r.total_games!=1?'s':''}`},
+  {key:"best_score",fmt:(v)=>`${v} pts`,sub:null},
+  {key:"total_wins",fmt:(v,r)=>`${v} vitória${v!=1?"s":""}`,sub:r=>`${r.total_games} partida${r.total_games!=1?"s":""}`},
+  {key:"longest_word_len",fmt:(v,r)=>r.longest_word?`${esc(r.longest_word)} · ${v} letras`:`${v} letras`,sub:null},
+  {key:"words_per_second",fmt:(v)=>`${(+v).toFixed(3)} pal/s`,sub:r=>`${r.total_words_found} palavras`},
+  {key:"total_words_found",fmt:(v)=>`${v} palavras`,sub:r=>`${r.total_games} partida${r.total_games!=1?"s":""}`},
 ];
-async function abrirLeaderboard(){
-  show("leaderboard");
-  mudarAbaLb(lbAba);
-  await carregarLeaderboard();
-}
-function fecharLeaderboard(){ show(NOME?"lobby":"login"); }
+async function abrirLeaderboard(){show("leaderboard");mudarAbaLb(lbAba);await carregarLeaderboard();}
+function fecharLeaderboard(){show(SALA_ID?"lobby":"home");}
 async function carregarLeaderboard(){
   $("lb-lista").innerHTML='<div class="aviso">Carregando...</div>';
   const r=await api("/api/leaderboard");
-  if(!r||!r.ok){ $("lb-lista").innerHTML='<div class="aviso">Não foi possível carregar.</div>'; return; }
-  lbDados=r.data;
-  renderizarLb();
+  if(!r||!r.ok){$("lb-lista").innerHTML='<div class="aviso">Não foi possível carregar.</div>';return;}
+  lbDados=r.data;renderizarLb();
 }
 function mudarAbaLb(idx){
   lbAba=idx;
-  LB_CATS.forEach((_,i)=>{ const b=$("lb-tab-"+i); if(b) b.classList.toggle("sec",i!==idx); });
+  LB_CATS.forEach((_,i)=>{const b=$("lb-tab-"+i);if(b)b.classList.toggle("sec",i!==idx);});
   renderizarLb();
 }
 function renderizarLb(){
-  if(!lbDados) return;
+  if(!lbDados)return;
   const cat=LB_CATS[lbAba];
   const sorted=[...lbDados].filter(r=>+r[cat.key]>0).sort((a,b)=>+b[cat.key]-(+a[cat.key]));
-  if(!sorted.length){ $("lb-lista").innerHTML='<div class="aviso">Nenhum jogador ainda.</div>'; return; }
+  if(!sorted.length){$("lb-lista").innerHTML='<div class="aviso">Nenhum jogador ainda.</div>';return;}
   $("lb-lista").innerHTML=sorted.slice(0,20).map((row,i)=>{
     const val=cat.fmt(row[cat.key],row);
-    const sub=cat.sub?`<br><span style="font-size:11px;color:#9a8a72">${cat.sub(row)}</span>`:'';
+    const sub=cat.sub?`<br><span style="font-size:11px;color:#9a8a72">${cat.sub(row)}</span>`:"";
     const eu=row.username===PERFIL_USER;
-    return `<div class="rank-linha${eu?' plinha eu':''}">
+    return`<div class="rank-linha${eu?" plinha eu":""}">
       <div class="rank-pos">${medalha(i)}</div>
-      <div class="rank-nome">${esc(row.username)}${eu?' (você)':''}</div>
+      <div class="rank-nome">${esc(row.username)}${eu?" (você)":""}</div>
       <div class="rank-vals"><b>${val}</b>${sub}</div>
     </div>`;
   }).join("");
 }
 
-// ---------- estatísticas pessoais ----------
-async function abrirStats(){
-  show("stats");
-  await carregarMeusStats();
-}
-function fecharStats(){ show("config"); }
+// ---- estatísticas ----
+async function abrirStats(){show("stats");await carregarMeusStats();}
+function fecharStats(){show("config");}
 async function carregarMeusStats(){
   $("stats-conteudo").innerHTML='<div class="aviso">Carregando...</div>';
   const r=await api("/api/perfil/stats");
-  if(!r||!r.ok){ $("stats-conteudo").innerHTML='<div class="aviso">Erro ao carregar.</div>'; return; }
-  renderStats(r.stats, r.username);
+  if(!r||!r.ok){$("stats-conteudo").innerHTML='<div class="aviso">Erro ao carregar.</div>';return;}
+  renderStats(r.stats,r.username);
 }
-function renderStats(s, username){
+function renderStats(s,username){
   if(!s||+s.total_games===0){
     $("stats-conteudo").innerHTML=`<div style="text-align:center;margin-bottom:12px">
       <div style="font-size:22px;font-weight:700;color:var(--madeira)">${esc(username)}</div></div>
@@ -1371,10 +1312,10 @@ function renderStats(s, username){
     return;
   }
   const taxa=+s.total_games>0?Math.round(+s.total_wins/+s.total_games*100):0;
-  const wps=+s.total_play_seconds>0?(+s.total_words_found/+s.total_play_seconds).toFixed(3):'0.000';
-  const avgLen=+s.total_words_found>0?(+s.total_word_chars/+s.total_words_found).toFixed(1):'0.0';
+  const wps=+s.total_play_seconds>0?(+s.total_words_found/+s.total_play_seconds).toFixed(3):"0.000";
+  const avgLen=+s.total_words_found>0?(+s.total_word_chars/+s.total_words_found).toFixed(1):"0.0";
   const seg=+s.total_play_seconds;
-  const h=Math.floor(seg/3600), m=Math.floor((seg%3600)/60);
+  const h=Math.floor(seg/3600),m=Math.floor((seg%3600)/60);
   const tempo=h>0?`${h}h ${m}min`:`${m}min`;
   $("stats-conteudo").innerHTML=`
     <div style="text-align:center;margin-bottom:14px">
@@ -1394,38 +1335,33 @@ function renderStats(s, username){
       <div class="l">Palavra mais longa</div>
       <div class="w">${esc(s.longest_word)}</div>
       <div class="l">${s.longest_word_len} letras</div>
-    </div>`:''}
+    </div>`:""}
     <div class="stat-grid">
       <div class="stat-item"><div class="n">${wps}</div><div class="l">palavras/seg</div></div>
       <div class="stat-item"><div class="n">${avgLen}</div><div class="l">letras/pal</div></div>
     </div>`;
 }
 
-// ---------- tela de configurações ----------
+// ---- configurações ----
 function abrirConfig(){
   if($("tela-config").classList.contains("hidden")){
-    telaAnterior = faseAtual==="jogando"?"jogo":
-                   faseAtual==="resultado"?"resultado":
-                   faseAtual==="fim_campeonato"?"fim":
-                   (NOME?"lobby":"login");
-    carregarPalavras();
+    telaAnterior=faseAtual==="jogando"?"jogo":
+                 faseAtual==="resultado"?"resultado":
+                 faseAtual==="fim_campeonato"?"fim":
+                 (SALA_ID?"lobby":"home");
+    $("cfg-palavras-card").classList.toggle("hidden",!SALA_ID);
+    if(SALA_ID) carregarPalavras();
     show("config");
   }
 }
-function fecharConfig(){ show(telaAnterior); }
+function fecharConfig(){show(telaAnterior);}
 
 function aplicarAudio(){
   Audio2.setMusica($("sw-musica").checked);
   Audio2.setSfx($("sw-sfx").checked);
   Audio2.setVolMusica((+$("vol-musica").value)/100);
   Audio2.setVolSfx((+$("vol-sfx").value)/100);
-  try{
-    localStorage.setItem("bg_audio",JSON.stringify({
-      m:$("sw-musica").checked,s:$("sw-sfx").checked,
-      vm:$("vol-musica").value,vs:$("vol-sfx").value,
-      t:$("sel-trilha").value
-    }));
-  }catch(e){}
+  try{localStorage.setItem("bg_audio",JSON.stringify({m:$("sw-musica").checked,s:$("sw-sfx").checked,vm:$("vol-musica").value,vs:$("vol-sfx").value,t:$("sel-trilha").value}));}catch(e){}
   if(faseAtual==="jogando"&&$("sw-musica").checked&&!Audio2.estaTocando())Audio2.tocarMusica();
 }
 function trocarTrilha(){
@@ -1436,60 +1372,55 @@ function trocarTrilha(){
 }
 function testarMusica(){
   Audio2.destravar();
-  if(Audio2.estaTocando()){ Audio2.pararMusica(); return; }
+  if(Audio2.estaTocando()){Audio2.pararMusica();return;}
   Audio2.tocarMusica(+$("sel-trilha").value);
-  setTimeout(()=>{ if(faseAtual!=="jogando")Audio2.pararMusica(); },8000);
+  setTimeout(()=>{if(faseAtual!=="jogando")Audio2.pararMusica();},8000);
 }
 function carregarMusicaLocal(){
-  const f=$("arq-mp3").files[0]; if(!f)return;
+  const f=$("arq-mp3").files[0];if(!f)return;
   const nome=Audio2.carregarMp3(f);
   $("mp3-nome").textContent=`Usando: ${nome} (só no seu aparelho)`;
 }
 
-// ---------- palavras customizadas ----------
+// ---- palavras customizadas ----
 async function carregarPalavras(){
-  const r=await api("/api/palavras");
+  if(!SALA_ID) return;
+  const r=await apiSala("/palavras");
   if(r&&r.palavras){
     $("pal-lista").innerHTML=r.palavras.length
-      ? r.palavras.map(w=>`<span class="chip">${esc(w)}</span>`).join("")
-      : `<span class="aviso">Nenhuma palavra extra ainda.</span>`;
+      ?r.palavras.map(w=>`<span class="chip">${esc(w)}</span>`).join("")
+      :`<span class="aviso">Nenhuma palavra extra ainda.</span>`;
   }
 }
 async function enviarPalavras(acao){
+  if(!SALA_ID){$("pal-msg").textContent="Entre em uma sala para usar isso.";return;}
   const txt=$("txt-palavras").value.trim();
-  if(!txt){ $("pal-msg").textContent="Escreva ao menos uma palavra."; return; }
-  const r=await api("/api/palavras",{palavras:txt,acao});
-  if(!r){ $("pal-msg").textContent="Falhou. Tente de novo."; return; }
-  const fez=r.aplicadas.length, ign=r.ignoradas.length;
-  let m = acao==="add"
-    ? `${fez} adicionada(s).`
-    : `${fez} removida(s).`;
-  if(ign) m += acao==="add"
-    ? ` ${ign} já existia(m) no dicionário.`
-    : ` ${ign} não era(m) palavra(s) desta sessão.`;
+  if(!txt){$("pal-msg").textContent="Escreva ao menos uma palavra.";return;}
+  const r=await apiSala("/palavras",{palavras:txt,acao});
+  if(!r){$("pal-msg").textContent="Falhou. Tente de novo.";return;}
+  const fez=r.aplicadas.length,ign=r.ignoradas.length;
+  let m=acao==="add"?`${fez} adicionada(s).`:`${fez} removida(s).`;
+  if(ign) m+=acao==="add"?` ${ign} já existia(m) no dicionário.`:` ${ign} não era(m) palavra(s) desta sessão.`;
   $("pal-msg").textContent=m;
   $("txt-palavras").value="";
   carregarPalavras();
 }
 
-// ---------- restaurar preferências locais ----------
+// ---- restaurar preferências ----
 (function restaurar(){
   try{
     const t=localStorage.getItem("bg_tol");
-    if(t){ TOLERANCIA=+t; $("vol-tol").value=Math.round(TOLERANCIA*100); }
+    if(t){TOLERANCIA=+t;$("vol-tol").value=Math.round(TOLERANCIA*100);}
     const a=JSON.parse(localStorage.getItem("bg_audio")||"null");
-    if(a){
-      $("sw-musica").checked=a.m; $("sw-sfx").checked=a.s;
-      $("vol-musica").value=a.vm; $("vol-sfx").value=a.vs;
-    }
+    if(a){$("sw-musica").checked=a.m;$("sw-sfx").checked=a.s;$("vol-musica").value=a.vm;$("vol-sfx").value=a.vs;}
   }catch(e){}
   const sel=$("sel-trilha");
   Audio2.nomesTrilhas().forEach((n,i)=>{
-    const o=document.createElement("option"); o.value=i; o.textContent=n; sel.appendChild(o);
+    const o=document.createElement("option");o.value=i;o.textContent=n;sel.appendChild(o);
   });
   try{
     const a=JSON.parse(localStorage.getItem("bg_audio")||"null");
-    if(a&&a.t!=null){ sel.value=a.t; Audio2.usarTrilhaInterna(+a.t); }
+    if(a&&a.t!=null){sel.value=a.t;Audio2.usarTrilhaInterna(+a.t);}
   }catch(e){}
   Audio2.setMusica($("sw-musica").checked);
   Audio2.setSfx($("sw-sfx").checked);
@@ -1497,15 +1428,28 @@ async function enviarPalavras(acao){
   Audio2.setVolSfx((+$("vol-sfx").value)/100);
 })();
 
-// ---------- perfil: entra automático se já tiver token salvo ----------
-(function initPerfil(){
-  if(carregarPerfilLocal()){
-    $("conta-user").textContent="Logado como: "+PERFIL_USER;
-    entrarSala();
+// ---- init ----
+(async function iniciarAplicacao(){
+  let salvo;
+  try{salvo=JSON.parse(localStorage.getItem("bg_perfil")||"null");}catch(e){}
+  if(salvo?.token&&salvo?.username){
+    PERFIL_TOKEN=salvo.token;PERFIL_USER=salvo.username;
+    if($("conta-user")) $("conta-user").textContent="Logado como: "+salvo.username;
+    if(salvo.sala_id){
+      const r=await api(`/api/sala/${salvo.sala_id}/entrar`,{});
+      if(r?.ok){
+        SALA_ID=salvo.sala_id;SALA_NOME=r.sala_nome;NOME=r.nome;
+        iniciarPoll();
+        return;
+      }
+      salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,null);
+    }
+    irHome();
   }else{
     $("perfil-carregando").classList.add("hidden");
     $("perfil-form").classList.remove("hidden");
     mostrarAbaPerfil("entrar");
+    show("login");
   }
 })();
 </script>

@@ -1,95 +1,102 @@
 """
-Servidor Boggle multiplayer v2.
-Config de sala: tamanho (3..10), duração, modo (individual/times), campeonato (nº partidas).
-Sincronização por polling. Estado em memória, uma sala global.
+Servidor Boggle multiplayer v3.
+Multi-sala com nome e senha opcional. Série de vitórias (1/3/5/7).
+Modo cooperativo (caça com palavras partilhadas) e competitivo.
 """
-import time
-import random
-import threading
+import time, random, threading, secrets
 from flask import Flask, request, jsonify, send_from_directory
 import game_core as gc
-import auth
-import db
+import auth, db
 
 app = Flask(__name__, static_folder="static")
-
 LOCK = threading.Lock()
+
+# -------- pool de salas --------
+# sala_id -> {"id", "nome", "senha_hash", "estado", "criada_em", "vazia_desde"}
+salas = {}
+
+SOBREV_TEMPO_INICIAL = 90
+SOBREV_FASES = [(0, 4, 4), (30, 4, 6), (60, 6, 6)]
+SOBREV_EMBARALHA_APOS = 90
+SOBREV_EMBARALHA_INTERVALO = 20
+SOBREV_AVISO = 5
+
+
+def estado_inicial():
+    return {
+        "fase": "lobby",
+        "config": {
+            "tamanho": 4,
+            "dificuldade": "medio",
+            "duracao": 180,
+            "modo_categoria": "competitivo",  # cooperativo | competitivo
+            "modo": "individual",              # individual | times | sobrevivencia | caca
+            "n_partidas": 1,                   # série: primeiro a ganhar N partidas
+        },
+        "grade": [],
+        "colunas": 4,
+        "linhas": 4,
+        "grade_info": {},
+        "grade_palavras": [],
+        "resumo": {},
+        "jogadores": {},
+        "host": None,
+        "inicio": 0,
+        "fim": 0,
+        "sobrev": {
+            "fase_grade": 0, "prox_embaralho": 0,
+            "embaralhou_em": 0, "cresceu_em": 0, "celulas_novas": [],
+        },
+        "placar": {},
+        "placar_times": {},
+        "rodada": 0,
+        "vitorias": {},
+        "historico": [],
+        "ranking": {},
+    }
+
+
+def _gerar_sala_id():
+    while True:
+        sid = secrets.token_hex(3).upper()
+        if sid not in salas:
+            return sid
 
 
 def _autenticar():
-    """Lê o header Authorization: Bearer <token> e retorna (pid, nome) ou (None, None)."""
-    cabecalho = request.headers.get("Authorization", "")
-    if not cabecalho.startswith("Bearer "):
+    cab = request.headers.get("Authorization", "")
+    if not cab.startswith("Bearer "):
         return None, None
-    return auth.verificar_token(cabecalho[7:])
+    return auth.verificar_token(cab[7:])
 
 
 def _exigir_login():
-    """Retorna (pid, nome, None) se autenticado, ou (None, None, resposta_erro)."""
     pid, nome = _autenticar()
     if not nome:
         return None, None, (jsonify({"erro": "nao autenticado"}), 401)
     return pid, nome, None
 
-def estado_inicial():
-    return {
-        "fase": "lobby",           # lobby | jogando | resultado | fim_campeonato
-        "config": {
-            "tamanho": 4,
-            "dificuldade": "medio",   # facil | medio | dificil
-            "duracao": 180,
-            # individual | times | sobrevivencia | caca
-            "modo": "individual",
-            "n_partidas": 1,       # campeonato: quantas partidas
-        },
-        "grade": [],
-        "colunas": 4,              # nº de colunas (grades retangulares no sobrevivência)
-        "linhas": 4,
-        "grade_info": {},
-        "grade_palavras": [],
-        "resumo": {},
-        # nome -> {palavras:set, visto:ts, time:str|None,
-        #          fim_individual:ts, vivo:bool, ultima_palavra:ts}
-        "jogadores": {},
-        "host": None,              # primeiro a entrar; só ele configura/inicia
-        "inicio": 0,
-        "fim": 0,
-        # --- sobrevivência ---
-        "sobrev": {
-            "fase_grade": 0,       # 0 = 4x4, 1 = 4x6, 2 = 6x6
-            "prox_embaralho": 0,   # timestamp do próximo embaralhamento
-            "embaralhou_em": 0,    # timestamp do último embaralhamento (pro aviso)
-            "cresceu_em": 0,       # timestamp do último crescimento (pra animação)
-            "celulas_novas": [],   # índices das células recém-adicionadas
-        },
-        "placar": {},              # placar individual da partida atual
-        "placar_times": {},        # placar de times da partida atual
-        "rodada": 0,               # nº da partida atual no campeonato (1-based)
-        "vitorias": {},            # acumulado de sets: nome(ou time) -> nº vitórias
-        "historico": [],           # [{rodada, vencedor}]
-        # ranking da sessão (não zera entre campeonatos; só no /api/zerar_ranking)
-        "ranking": {},             # nome -> {"total":int, "melhor":int, "partidas":int}
-    }
 
-# ---------------- parâmetros dos modos ----------------
-# Sobrevivência: tempo inicial e sequência de tabuleiros por tempo decorrido.
-SOBREV_TEMPO_INICIAL = 90          # 1:30
-SOBREV_FASES = [                   # (segundos_decorridos, linhas, colunas)
-    (0,  4, 4),
-    (30, 4, 6),                    # +30s
-    (60, 6, 6),                    # +30s
-]
-SOBREV_EMBARALHA_APOS = 90         # começa a embaralhar após 1:30 de partida
-SOBREV_EMBARALHA_INTERVALO = 20    # e repete a cada 20s
-SOBREV_AVISO = 5                   # segundos de aviso (peças piscando)
+def _sala_ou_erro(sala_id):
+    if not sala_id:
+        return None, (jsonify({"erro": "sala_id ausente"}), 400)
+    sala = salas.get(sala_id)
+    if not sala:
+        return None, (jsonify({"erro": "sala nao encontrada"}), 404)
+    return sala, None
+
+
+def _eh_host(nome, estado):
+    return bool(nome) and estado["host"] == nome
+
+
+def _passar_host(estado):
+    if estado["host"] in estado["jogadores"]:
+        return
+    estado["host"] = next(iter(estado["jogadores"]), None)
 
 
 def _expandir_grade(grade, li_ant, co_ant, li_novo, co_novo):
-    """
-    Cresce o tabuleiro PRESERVANDO as letras já existentes nas mesmas
-    posições (linha/coluna). Só as células novas são sorteadas.
-    Retorna (nova_grade, indices_das_celulas_novas).
-    """
     nova = [None] * (li_novo * co_novo)
     for r in range(li_ant):
         for c in range(co_ant):
@@ -97,7 +104,6 @@ def _expandir_grade(grade, li_ant, co_ant, li_novo, co_novo):
     novos = []
     for i, v in enumerate(nova):
         if v is None:
-            # mistura vogais/consoantes como na geração normal
             nova[i] = (random.choice(gc.VOGAIS) if random.random() < 0.40
                        else random.choice(gc.POOL_CONS))
             novos.append(i)
@@ -105,88 +111,56 @@ def _expandir_grade(grade, li_ant, co_ant, li_novo, co_novo):
 
 
 def bonus_tempo(palavra):
-    """3 letras=1s, 4=3s, 5=5s, 6=7s... (+2s por letra a partir de 4)."""
     n = len(palavra)
-    if n < 3:
-        return 0
-    if n == 3:
-        return 1
+    if n < 3: return 0
+    if n == 3: return 1
     return 3 + (n - 4) * 2
 
 
-estado = estado_inicial()
-
-
 def _fase_sobrev(decorrido):
-    """Qual (linhas, colunas) corresponde ao tempo decorrido de partida."""
-    atual = SOBREV_FASES[0]
-    idx = 0
+    atual = SOBREV_FASES[0]; idx = 0
     for i, (t, li, co) in enumerate(SOBREV_FASES):
         if decorrido >= t:
-            atual = (t, li, co)
-            idx = i
+            atual = (t, li, co); idx = i
     return idx, atual[1], atual[2]
 
 
-def _nova_grade(linhas, colunas, dificuldade="medio", candidatas=25):
-    grade, qtd, maior = gc.gerar_grade(
-        linhas, candidatas=candidatas, dificuldade=dificuldade, colunas=colunas
-    )
-    return grade, qtd, maior
-
-
-def _aplicar_sobrevivencia():
-    """
-    Cuida das transições de tabuleiro e do embaralhamento periódico.
-    Chamado a cada consulta de estado enquanto a partida roda.
-    """
+def _aplicar_sobrevivencia(estado):
     if estado["config"]["modo"] != "sobrevivencia" or estado["fase"] != "jogando":
         return
     agora = time.time()
     decorrido = agora - estado["inicio"]
-
-    # crescimento do tabuleiro por tempo decorrido
     idx, li, co = _fase_sobrev(decorrido)
     if idx != estado["sobrev"]["fase_grade"]:
         li_ant, co_ant = estado["linhas"], estado["colunas"]
         estado["sobrev"]["fase_grade"] = idx
-        # PRESERVA as letras que já estavam lá; só as células novas são sorteadas
         grade, novos = _expandir_grade(estado["grade"], li_ant, co_ant, li, co)
         estado["grade"] = grade
         estado["linhas"], estado["colunas"] = li, co
         estado["grade_palavras"] = sorted(
-            gc.palavras_da_grade(grade, li, co), key=lambda w: (-len(w), w)
-        )
+            gc.palavras_da_grade(grade, li, co), key=lambda w: (-len(w), w))
         estado["grade_info"] = {
             "palavras": len(estado["grade_palavras"]),
             "maior": len(estado["grade_palavras"][0]) if estado["grade_palavras"] else 0,
         }
-        # as palavras já achadas continuam valendo (o tabuleiro só cresceu)
-        # marca as células novas pra interface animar a entrada delas
         estado["sobrev"]["cresceu_em"] = agora
         estado["sobrev"]["celulas_novas"] = novos
-        # reinicia o ciclo de embaralhamento
         estado["sobrev"]["prox_embaralho"] = 0
-
-    # embaralhamento periódico depois de SOBREV_EMBARALHA_APOS
     if decorrido >= SOBREV_EMBARALHA_APOS:
         if estado["sobrev"]["prox_embaralho"] == 0:
             estado["sobrev"]["prox_embaralho"] = agora + SOBREV_EMBARALHA_INTERVALO
         elif agora >= estado["sobrev"]["prox_embaralho"]:
-            # embaralha as letras existentes (mantém o conjunto, muda as posições)
             g = estado["grade"][:]
             random.shuffle(g)
             estado["grade"] = g
             li, co = estado["linhas"], estado["colunas"]
             estado["grade_palavras"] = sorted(
-                gc.palavras_da_grade(g, li, co), key=lambda w: (-len(w), w)
-            )
+                gc.palavras_da_grade(g, li, co), key=lambda w: (-len(w), w))
             estado["sobrev"]["embaralhou_em"] = agora
             estado["sobrev"]["prox_embaralho"] = agora + SOBREV_EMBARALHA_INTERVALO
 
 
-def _checar_eliminados():
-    """No sobrevivência, marca quem ficou sem tempo. Partida acaba quando todos caem."""
+def _checar_eliminados(estado):
     if estado["config"]["modo"] != "sobrevivencia" or estado["fase"] != "jogando":
         return
     agora = time.time()
@@ -198,11 +172,10 @@ def _checar_eliminados():
             else:
                 algum_vivo = True
     if not algum_vivo and estado["jogadores"]:
-        # força o fim da partida
         estado["fim"] = agora - 1
 
 
-def _reset_para_lobby(full=False):
+def _reset_para_lobby(estado, full=False):
     estado["fase"] = "lobby"
     estado["grade"] = []
     estado["inicio"] = 0
@@ -217,8 +190,7 @@ def _reset_para_lobby(full=False):
         estado["historico"] = []
 
 
-def _vencedor_da_partida():
-    """Retorna o nome (individual) ou time (modo times) que venceu a partida atual."""
+def _vencedor_da_partida(estado):
     if estado["config"]["modo"] == "times":
         if not estado["placar_times"]:
             return None
@@ -229,116 +201,116 @@ def _vencedor_da_partida():
         return max(estado["placar"].items(), key=lambda kv: kv[1]["pontos"])[0]
 
 
-def _checar_fim():
-    if estado["fase"] == "jogando" and time.time() >= estado["fim"]:
-        jogadores = {n: j["palavras"] for n, j in estado["jogadores"].items()}
-        if estado["config"]["modo"] == "times":
-            times = {n: (j["time"] or "Sem time") for n, j in estado["jogadores"].items()}
-            ind, pt = gc.resolver_placar_times(jogadores, times)
-            estado["placar"] = ind
-            estado["placar_times"] = pt
+def _checar_fim(estado):
+    if estado["fase"] != "jogando" or time.time() < estado["fim"]:
+        return
+    jogadores_palavras = {n: j["palavras"] for n, j in estado["jogadores"].items()}
+    if estado["config"]["modo"] == "times":
+        times = {n: (j["time"] or "Sem time") for n, j in estado["jogadores"].items()}
+        ind, pt = gc.resolver_placar_times(jogadores_palavras, times)
+        estado["placar"] = ind
+        estado["placar_times"] = pt
+    else:
+        estado["placar"] = gc.resolver_placar(jogadores_palavras)
+        estado["placar_times"] = {}
+
+    for nome, dados in estado["placar"].items():
+        r = estado["ranking"].setdefault(nome, {"total": 0, "melhor": 0, "partidas": 0})
+        r["total"] += dados["pontos"]
+        r["partidas"] += 1
+        if dados["pontos"] > r["melhor"]:
+            r["melhor"] = dados["pontos"]
+
+    todas = estado.get("grade_palavras", [])
+    achadas_grupo = set()
+    for j in estado["jogadores"].values():
+        achadas_grupo |= j["palavras"]
+    faltaram = [w for w in todas if w not in achadas_grupo]
+    estado["resumo"] = {
+        "total": len(todas),
+        "achadas": len([w for w in todas if w in achadas_grupo]),
+        "faltaram": len(faltaram),
+        "maior": todas[0] if todas else "",
+        "maior_achada": max(achadas_grupo, key=len) if achadas_grupo else "",
+        "faltaram_lista": faltaram[:60],
+        "achadas_lista": sorted(achadas_grupo, key=lambda w: (-len(w), w)),
+    }
+
+    venc = _vencedor_da_partida(estado)
+    duracao = time.time() - estado["inicio"]
+    modo = estado["config"]["modo"]
+    for nome, dados_placar in estado["placar"].items():
+        j = estado["jogadores"].get(nome)
+        if not j or not j.get("perfil_id"):
+            continue
+        palavras = j["palavras"]
+        if modo == "times":
+            ganhou = (j.get("time") or "Sem time") == venc
         else:
-            estado["placar"] = gc.resolver_placar(jogadores)
-            estado["placar_times"] = {}
-
-        # ranking da sessão: acumula pontos individuais de cada jogador
-        for nome, dados in estado["placar"].items():
-            r = estado["ranking"].setdefault(
-                nome, {"total": 0, "melhor": 0, "partidas": 0}
-            )
-            r["total"] += dados["pontos"]
-            r["partidas"] += 1
-            if dados["pontos"] > r["melhor"]:
-                r["melhor"] = dados["pontos"]
-
-        # resumo da grade: o que existia vs o que o grupo achou
-        todas = estado.get("grade_palavras", [])
-        achadas_grupo = set()
-        for j in estado["jogadores"].values():
-            achadas_grupo |= j["palavras"]
-        faltaram = [w for w in todas if w not in achadas_grupo]
-        estado["resumo"] = {
-            "total": len(todas),
-            "achadas": len([w for w in todas if w in achadas_grupo]),
-            "faltaram": len(faltaram),
-            "maior": todas[0] if todas else "",
-            "maior_achada": max(achadas_grupo, key=len) if achadas_grupo else "",
-            # amostra das que faltaram, priorizando as mais longas
-            "faltaram_lista": faltaram[:60],
-            "achadas_lista": sorted(achadas_grupo, key=lambda w: (-len(w), w)),
-        }
-
-        # persiste estatísticas de cada jogador logado no perfil dele
-        venc = _vencedor_da_partida()
-        duracao = time.time() - estado["inicio"]
-        modo = estado["config"]["modo"]
-        for nome, dados_placar in estado["placar"].items():
-            j = estado["jogadores"].get(nome)
-            if not j or not j.get("perfil_id"):
-                continue
-            palavras = j["palavras"]
-            if modo == "times":
-                ganhou = (j.get("time") or "Sem time") == venc
-            else:
-                ganhou = nome == venc
-            try:
-                db.persistir_partida(j["perfil_id"], {
-                    "mode": modo,
-                    "team": j.get("time") if modo == "times" else None,
-                    "score": dados_placar["pontos"],
-                    "words_found": len(palavras),
-                    "longest_word": max(palavras, key=len) if palavras else None,
-                    "avg_word_length": (
-                        sum(len(w) for w in palavras) / len(palavras)
-                    ) if palavras else 0,
-                    "words_per_second": (len(palavras) / duracao) if duracao > 0 else 0,
-                    "won": ganhou,
-                    "duration_seconds": duracao,
-                })
-            except Exception as e:
-                print(f"[perfil] falha ao persistir partida de {nome}: {e}")
-
-        # contabiliza vitória do set
-        if venc is not None:
-            estado["vitorias"][venc] = estado["vitorias"].get(venc, 0) + 1
-            if estado["config"]["modo"] == "times":
-                pontos_venc = estado["placar_times"].get(venc, 0)
-            else:
-                pontos_venc = estado["placar"].get(venc, {}).get("pontos", 0)
-            estado["historico"].append({
-                "rodada": estado["rodada"],
-                "vencedor": venc,
-                "pontos": pontos_venc,
+            ganhou = nome == venc
+        try:
+            db.persistir_partida(j["perfil_id"], {
+                "mode": modo,
+                "team": j.get("time") if modo == "times" else None,
+                "score": dados_placar["pontos"],
+                "words_found": len(palavras),
+                "longest_word": max(palavras, key=len) if palavras else None,
+                "avg_word_length": (sum(len(w) for w in palavras) / len(palavras)) if palavras else 0,
+                "words_per_second": (len(palavras) / duracao) if duracao > 0 else 0,
+                "won": ganhou,
+                "duration_seconds": duracao,
             })
-            # mantém só as últimas 5
-            estado["historico"] = estado["historico"][-5:]
+        except Exception as e:
+            print(f"[perfil] falha ao persistir partida de {nome}: {e}")
 
-        # fim de campeonato?
-        if estado["rodada"] >= estado["config"]["n_partidas"]:
-            estado["fase"] = "fim_campeonato"
-        else:
-            estado["fase"] = "resultado"
+    if venc is not None:
+        estado["vitorias"][venc] = estado["vitorias"].get(venc, 0) + 1
+        pontos_venc = (estado["placar_times"].get(venc, 0) if modo == "times"
+                       else estado["placar"].get(venc, {}).get("pontos", 0))
+        estado["historico"].append({"rodada": estado["rodada"], "vencedor": venc, "pontos": pontos_venc})
+        estado["historico"] = estado["historico"][-5:]
+
+    # série: primeiro a ganhar n_partidas
+    alvo = estado["config"]["n_partidas"]
+    max_vit = max(estado["vitorias"].values(), default=0) if estado["vitorias"] else 0
+    if alvo <= 1 or max_vit >= alvo:
+        estado["fase"] = "fim_campeonato"
+    else:
+        estado["fase"] = "resultado"
 
 
-def _limpar_ausentes():
+def _limpar_ausentes(sala):
+    estado = sala["estado"]
     agora = time.time()
     if estado["fase"] != "jogando":
         fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > 30]
         for n in fora:
             del estado["jogadores"][n]
-    elif estado["jogadores"] and all(agora - j["visto"] > 30 for j in estado["jogadores"].values()):
-        # todos desconectaram durante o jogo → reset
-        _reset_para_lobby(full=True)
+    elif (estado["jogadores"] and
+          all(agora - j["visto"] > 30 for j in estado["jogadores"].values())):
+        _reset_para_lobby(estado, full=True)
         estado["host"] = None
         return
-    # reassign host se necessário (inclusive durante o jogo)
     if estado["host"] not in estado["jogadores"]:
-        _passar_host()
-    # sala vazia fora do jogo → reset
+        _passar_host(estado)
     if not estado["jogadores"] and estado["fase"] != "jogando":
-        _reset_para_lobby(full=True)
+        _reset_para_lobby(estado, full=True)
         estado["host"] = None
+        sala.setdefault("vazia_desde", agora)
 
+
+def _limpar_salas_vazias():
+    agora = time.time()
+    para_remover = [
+        sid for sid, sala in salas.items()
+        if not sala["estado"]["jogadores"]
+        and (agora - sala.get("vazia_desde", agora)) > 300
+    ]
+    for sid in para_remover:
+        del salas[sid]
+
+
+# ---- rotas de perfil ----
 
 @app.route("/")
 def index():
@@ -359,31 +331,6 @@ def perfil_criar():
     return jsonify({"ok": True, "token": token, "username": username})
 
 
-@app.route("/api/perfil/stats")
-def perfil_stats():
-    pid, nome, erro = _exigir_login()
-    if erro:
-        return erro
-    stats = db.obter_stats(pid)
-    if not stats:
-        return jsonify({"ok": False, "motivo": "perfil nao encontrado"}), 404
-    return jsonify({"ok": True, "stats": {k: (str(v) if hasattr(v, '__float__') else v)
-                                           for k, v in stats.items()}, "username": nome})
-
-
-@app.route("/api/leaderboard")
-def leaderboard():
-    _, _, erro = _exigir_login()
-    if erro:
-        return erro
-    data = db.obter_leaderboard()
-    # converte Decimal para float para JSON
-    resultado = []
-    for row in data:
-        resultado.append({k: float(v) if hasattr(v, '__float__') else v for k, v in row.items()})
-    return jsonify({"ok": True, "data": resultado})
-
-
 @app.route("/api/perfil/login", methods=["POST"])
 def perfil_login():
     data = request.json or {}
@@ -393,16 +340,91 @@ def perfil_login():
     if not perfil or not auth.checar_pin(pin, perfil["pin_hash"]):
         return jsonify({"ok": False, "motivo": "usuario ou pin incorretos"}), 401
     token = auth.gerar_token(perfil["id"], username)
-    stats = db.obter_stats(perfil["id"])
-    return jsonify({"ok": True, "token": token, "username": username, "stats": stats})
+    return jsonify({"ok": True, "token": token, "username": username})
 
 
-@app.route("/api/entrar", methods=["POST"])
-def entrar():
+@app.route("/api/perfil/stats")
+def perfil_stats():
     pid, nome, erro = _exigir_login()
-    if erro:
-        return erro
+    if erro: return erro
+    stats = db.obter_stats(pid)
+    if not stats:
+        return jsonify({"ok": False, "motivo": "perfil nao encontrado"}), 404
+    return jsonify({"ok": True,
+                    "stats": {k: (str(v) if hasattr(v, '__float__') else v) for k, v in stats.items()},
+                    "username": nome})
+
+
+@app.route("/api/leaderboard")
+def leaderboard():
+    _, _, erro = _exigir_login()
+    if erro: return erro
+    data = db.obter_leaderboard()
+    resultado = [{k: float(v) if hasattr(v, '__float__') else v for k, v in row.items()}
+                 for row in data]
+    return jsonify({"ok": True, "data": resultado})
+
+
+# ---- rotas de sala ----
+
+@app.route("/api/salas")
+def listar_salas():
+    _, _, erro = _exigir_login()
+    if erro: return erro
     with LOCK:
+        _limpar_salas_vazias()
+        lista = [{
+            "id": sala["id"],
+            "nome": sala["nome"],
+            "jogadores": len(sala["estado"]["jogadores"]),
+            "fase": sala["estado"]["fase"],
+            "tem_senha": bool(sala["senha_hash"]),
+            "modo_categoria": sala["estado"]["config"]["modo_categoria"],
+            "modo": sala["estado"]["config"]["modo"],
+        } for sala in salas.values()]
+    return jsonify({"ok": True, "salas": lista})
+
+
+@app.route("/api/sala/criar", methods=["POST"])
+def criar_sala():
+    pid, nome, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    nome_sala = (data.get("nome") or "").strip()[:32]
+    if not nome_sala:
+        return jsonify({"ok": False, "motivo": "nome da sala obrigatorio"}), 400
+    senha = (data.get("senha") or "").strip()
+    senha_hash = auth.hash_pin(senha) if senha else None
+    with LOCK:
+        sid = _gerar_sala_id()
+        e = estado_inicial()
+        e["jogadores"][nome] = {
+            "palavras": set(), "visto": time.time(), "time": None,
+            "vivo": True, "fim_individual": 0, "ultima_palavra": 0,
+            "perfil_id": pid,
+        }
+        e["host"] = nome
+        salas[sid] = {
+            "id": sid, "nome": nome_sala, "senha_hash": senha_hash,
+            "estado": e, "criada_em": time.time(),
+        }
+    return jsonify({"ok": True, "sala_id": sid, "sala_nome": nome_sala, "nome": nome})
+
+
+@app.route("/api/sala/<sala_id>/entrar", methods=["POST"])
+def entrar_sala(sala_id):
+    pid, nome, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    with LOCK:
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
+        # verifica senha se for novo na sala
+        if nome not in estado["jogadores"] and sala["senha_hash"]:
+            senha = (data.get("senha") or "").strip()
+            if not auth.checar_pin(senha, sala["senha_hash"]):
+                return jsonify({"ok": False, "motivo": "senha incorreta"}), 403
         if nome not in estado["jogadores"]:
             estado["jogadores"][nome] = {
                 "palavras": set(), "visto": time.time(), "time": None,
@@ -412,40 +434,49 @@ def entrar():
         else:
             estado["jogadores"][nome]["visto"] = time.time()
             estado["jogadores"][nome]["perfil_id"] = pid
-        # o primeiro a entrar vira host
         if estado["host"] is None or estado["host"] not in estado["jogadores"]:
             estado["host"] = nome
-    return jsonify({"ok": True, "nome": nome, "host": estado["host"] == nome})
+        sala.pop("vazia_desde", None)
+    return jsonify({"ok": True, "nome": nome, "sala_nome": sala["nome"],
+                    "host": estado["host"] == nome})
 
 
-def _eh_host(nome):
-    return bool(nome) and estado["host"] == nome
+@app.route("/api/sala/<sala_id>/sair", methods=["POST"])
+def sair(sala_id):
+    _, nome, erro = _exigir_login()
+    if erro: return erro
+    with LOCK:
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
+        if nome in estado["jogadores"]:
+            del estado["jogadores"][nome]
+        _passar_host(estado)
+        if not estado["jogadores"]:
+            _reset_para_lobby(estado, full=True)
+            estado["ranking"] = {}
+            estado["host"] = None
+            sala["vazia_desde"] = time.time()
+    return jsonify({"ok": True})
 
 
-def _passar_host():
-    """Se o host saiu, promove o próximo jogador da lista."""
-    if estado["host"] in estado["jogadores"]:
-        return
-    estado["host"] = next(iter(estado["jogadores"]), None)
-
-
-@app.route("/api/config", methods=["POST"])
-def config():
-    """Atualiza config da sala (só no lobby)."""
+@app.route("/api/sala/<sala_id>/config", methods=["POST"])
+def config_sala(sala_id):
     data = request.json or {}
     _, nome, erro = _exigir_login()
-    if erro:
-        return erro
+    if erro: return erro
     with LOCK:
-        if not _eh_host(nome):
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
+        if not _eh_host(nome, estado):
             return jsonify({"ok": False, "motivo": "so o host configura"})
         if estado["fase"] not in ("lobby", "fim_campeonato"):
             return jsonify({"ok": False, "motivo": "so no lobby"})
         c = estado["config"]
-        # Recordes da sessão zeram quando o MODO DE JOGO muda (as partidas
-        # deixam de ser comparáveis). Entrar/sair jogador não zera nada.
         muda_modo = (
             ("modo" in data and data["modo"] != c["modo"])
+            or ("modo_categoria" in data and data["modo_categoria"] != c["modo_categoria"])
             or ("tamanho" in data and int(data["tamanho"]) != c["tamanho"])
             or ("dificuldade" in data and data["dificuldade"] != c["dificuldade"])
             or ("duracao" in data and int(data["duracao"]) != c["duracao"])
@@ -456,12 +487,15 @@ def config():
             c["dificuldade"] = data["dificuldade"]
         if "duracao" in data:
             c["duracao"] = max(30, min(600, int(data["duracao"])))
-        if "modo" in data and data["modo"] in (
-            "individual", "times", "sobrevivencia", "caca"
-        ):
-            c["modo"] = data["modo"]
-        if "n_partidas" in data:
-            c["n_partidas"] = max(1, min(15, int(data["n_partidas"])))
+        if "modo_categoria" in data and data["modo_categoria"] in ("cooperativo", "competitivo"):
+            c["modo_categoria"] = data["modo_categoria"]
+            if data["modo_categoria"] == "cooperativo":
+                c["modo"] = "caca"
+        if "modo" in data and data["modo"] in ("individual", "times", "sobrevivencia"):
+            if c["modo_categoria"] == "competitivo":
+                c["modo"] = data["modo"]
+        if "n_partidas" in data and int(data["n_partidas"]) in (1, 3, 5, 7):
+            c["n_partidas"] = int(data["n_partidas"])
         if muda_modo:
             estado["ranking"] = {}
             estado["historico"] = []
@@ -469,70 +503,55 @@ def config():
     return jsonify({"ok": True, "config": estado["config"]})
 
 
-@app.route("/api/time", methods=["POST"])
-def set_time():
-    """Define o time de um jogador (só no lobby)."""
+@app.route("/api/sala/<sala_id>/time", methods=["POST"])
+def set_time(sala_id):
     data = request.json or {}
     _, nome, erro = _exigir_login()
-    if erro:
-        return erro
+    if erro: return erro
     t = (data.get("time", "") or "").strip()[:16] or None
     with LOCK:
-        if nome in estado["jogadores"]:
-            estado["jogadores"][nome]["time"] = t
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        if nome in sala["estado"]["jogadores"]:
+            sala["estado"]["jogadores"][nome]["time"] = t
     return jsonify({"ok": True})
 
 
-@app.route("/api/iniciar", methods=["POST"])
-def iniciar():
+@app.route("/api/sala/<sala_id>/iniciar", methods=["POST"])
+def iniciar(sala_id):
     _, nome, erro = _exigir_login()
-    if erro:
-        return erro
+    if erro: return erro
     with LOCK:
-        if not _eh_host(nome):
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
+        if not _eh_host(nome, estado):
             return jsonify({"ok": False, "motivo": "so o host inicia"})
-        # se veio de fim de campeonato, zera o placar de sets
         if estado["fase"] == "fim_campeonato":
-            _reset_para_lobby(full=True)
-        # nova partida do campeonato
-        if estado["fase"] in ("lobby", "resultado"):
-            if estado["fase"] == "lobby":
-                estado["rodada"] = 0
-                estado["vitorias"] = {}
-                estado["historico"] = []
+            _reset_para_lobby(estado, full=True)
+        if estado["fase"] == "lobby":
+            estado["rodada"] = 0
+            estado["vitorias"] = {}
+            estado["historico"] = []
         estado["fase"] = "jogando"
         modo = estado["config"]["modo"]
         dif = estado["config"].get("dificuldade", "medio")
-
-        # dimensões iniciais dependem do modo
         if modo == "sobrevivencia":
-            _, li, co = _fase_sobrev(0)          # começa 4x4
+            _, li, co = _fase_sobrev(0)
             estado["sobrev"] = {"fase_grade": 0, "prox_embaralho": 0,
-                                "embaralhou_em": 0, "cresceu_em": 0,
-                                "celulas_novas": []}
+                                "embaralhou_em": 0, "cresceu_em": 0, "celulas_novas": []}
         else:
             li = co = estado["config"]["tamanho"]
-
-        grade, qtd_palavras, maior = gc.gerar_grade(
-            li, dificuldade=dif, colunas=co,
-        )
+        grade, qtd, maior = gc.gerar_grade(li, dificuldade=dif, colunas=co)
         estado["grade"] = grade
         estado["linhas"], estado["colunas"] = li, co
-        estado["grade_info"] = {"palavras": qtd_palavras, "maior": maior}
+        estado["grade_info"] = {"palavras": qtd, "maior": maior}
         todas = gc.palavras_da_grade(grade, li, co)
         estado["grade_palavras"] = sorted(todas, key=lambda w: (-len(w), w))
-
         agora = time.time()
         estado["inicio"] = agora
-        if modo == "sobrevivencia":
-            # cada jogador tem seu próprio relógio; o "fim" da sala é só um teto
-            estado["fim"] = agora + 60 * 60
-        elif modo == "caca":
-            # caça completa: sem limite de tempo (teto alto de segurança)
-            estado["fim"] = agora + 60 * 60
-        else:
-            estado["fim"] = agora + estado["config"]["duracao"]
-
+        estado["fim"] = agora + (60 * 60 if modo in ("sobrevivencia", "caca")
+                                 else estado["config"]["duracao"])
         estado["rodada"] += 1
         for j in estado["jogadores"].values():
             j["palavras"] = set()
@@ -544,182 +563,124 @@ def iniciar():
     return jsonify({"ok": True})
 
 
-@app.route("/api/zerar_ranking", methods=["POST"])
-def zerar_ranking():
-    with LOCK:
-        estado["ranking"] = {}
-    return jsonify({"ok": True})
-
-
-@app.route("/api/palavras", methods=["GET", "POST"])
-def palavras_extras():
-    """
-    Palavras adicionadas pelos jogadores nesta sessão.
-    Ficam em memória (somem se o servidor reiniciar) e valem pra todos.
-    """
-    if request.method == "GET":
-        return jsonify({"palavras": sorted(gc.EXTRAS)})
-
-    data = request.json or {}
-    texto = (data.get("palavras") or "").upper()
-    acao = data.get("acao", "add")
-    novas = [p.strip() for p in texto.replace(",", " ").replace("\n", " ").split()]
-    novas = ["".join(c for c in p if c.isalpha()) for p in novas]
-    novas = [p for p in novas if 3 <= len(p) <= 16]
-
-    aplicadas, ignoradas = [], []
-    with LOCK:
-        for p in novas:
-            if acao == "remover":
-                (aplicadas if gc.remover_palavra(p) else ignoradas).append(p)
-            else:
-                (aplicadas if gc.adicionar_palavra(p) else ignoradas).append(p)
-    return jsonify({
-        "ok": True,
-        "acao": acao,
-        "aplicadas": aplicadas,      # de fato adicionadas/removidas
-        "ignoradas": ignoradas,      # já existiam no dicionário base, ou não eram extras
-        "total_extras": len(gc.EXTRAS),
-    })
-
-
-@app.route("/api/nova", methods=["POST"])
-def nova():
-    """Encerra a partida / volta ao lobby. Só o host (ou sala vazia)."""
+@app.route("/api/sala/<sala_id>/nova", methods=["POST"])
+def nova(sala_id):
     _, nome, erro = _exigir_login()
-    if erro:
-        return erro
+    if erro: return erro
     with LOCK:
-        if estado["jogadores"] and not _eh_host(nome):
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
+        if estado["jogadores"] and not _eh_host(nome, estado):
             return jsonify({"ok": False, "motivo": "so o host encerra"})
-        _reset_para_lobby(full=True)
+        _reset_para_lobby(estado, full=True)
     return jsonify({"ok": True})
 
 
-@app.route("/api/sair", methods=["POST"])
-def sair():
-    """Jogador sai da sala. Se era o host, passa o bastão."""
-    _, nome, erro = _exigir_login()
-    if erro:
-        return erro
-    with LOCK:
-        if nome in estado["jogadores"]:
-            del estado["jogadores"][nome]
-        _passar_host()
-        # sala vazia volta ao lobby limpo
-        if not estado["jogadores"]:
-            _reset_para_lobby(full=True)
-            estado["ranking"] = {}
-            estado["host"] = None
-    return jsonify({"ok": True})
-
-
-@app.route("/api/submeter", methods=["POST"])
-def submeter():
+@app.route("/api/sala/<sala_id>/submeter", methods=["POST"])
+def submeter(sala_id):
     data = request.json or {}
     _, nome, erro = _exigir_login()
-    if erro:
-        return erro
+    if erro: return erro
     caminho = data.get("caminho", [])
     with LOCK:
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
         if estado["fase"] != "jogando":
             return jsonify({"ok": False, "motivo": "fora de partida"})
         if nome not in estado["jogadores"]:
             return jsonify({"ok": False, "motivo": "desconhecido"})
         j = estado["jogadores"][nome]
         modo = estado["config"]["modo"]
-
-        # no sobrevivência, quem já ficou sem tempo não pontua mais
         if modo == "sobrevivencia" and not j.get("vivo", True):
             return jsonify({"ok": False, "motivo": "sem tempo"})
-
-        # usa as dimensões reais da grade (pode ser retangular, ex.: 4x6)
-        ok, w = gc.validar_submissao(
-            estado["grade"], caminho,
-            linhas=estado["linhas"], colunas=estado["colunas"],
-        )
+        ok, w = gc.validar_submissao(estado["grade"], caminho,
+                                      linhas=estado["linhas"], colunas=estado["colunas"])
         if not ok:
             return jsonify({"ok": False, "palavra": w})
-
         agora = time.time()
         ja = w in j["palavras"]
         j["palavras"].add(w)
         j["visto"] = agora
         if not ja:
             j["ultima_palavra"] = agora
-
         resp = {"ok": True, "palavra": w, "base": gc.pontos_base(w), "repetida": ja}
-
-        # sobrevivência: palavra nova devolve tempo
         if modo == "sobrevivencia" and not ja:
             ganho = bonus_tempo(w)
             j["fim_individual"] = j.get("fim_individual", agora) + ganho
             resp["ganho_tempo"] = ganho
-
-        # caça completa: informa o progresso
         if modo == "caca":
-            total = len(estado["grade_palavras"])
-            achou = len(j["palavras"])
+            modo_cat = estado["config"]["modo_categoria"]
+            if modo_cat == "cooperativo":
+                coletivas = set()
+                for jj in estado["jogadores"].values():
+                    coletivas |= jj["palavras"]
+                total = len(estado["grade_palavras"])
+                achou = len(coletivas)
+            else:
+                total = len(estado["grade_palavras"])
+                achou = len(j["palavras"])
             resp["progresso"] = {"achadas": achou, "total": total}
             if achou >= total and total > 0:
-                estado["fim"] = agora - 1   # completou tudo: encerra
+                estado["fim"] = agora - 1
         return jsonify(resp)
 
 
-@app.route("/api/dica", methods=["POST"])
-def dica():
-    """
-    Dá uma dica: sempre uma palavra de EXATAMENTE 3 letras que o jogador
-    ainda não achou. Disponível nos modos individual, times e caça.
-    Se todas as de 3 letras já foram achadas, não devolve nada.
-    """
+@app.route("/api/sala/<sala_id>/dica", methods=["POST"])
+def dica(sala_id):
     _, nome, erro = _exigir_login()
-    if erro:
-        return erro
+    if erro: return erro
     with LOCK:
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
         if estado["fase"] != "jogando":
             return jsonify({"ok": False, "motivo": "fora de partida"})
         if estado["config"]["modo"] not in ("individual", "times", "caca"):
             return jsonify({"ok": False, "motivo": "modo sem dicas"})
         if nome not in estado["jogadores"]:
             return jsonify({"ok": False, "motivo": "desconhecido"})
-
-        ja = estado["jogadores"][nome]["palavras"]
-        candidatas = [w for w in estado["grade_palavras"]
-                      if len(w) == 3 and w not in ja]
+        modo_cat = estado["config"]["modo_categoria"]
+        if modo_cat == "cooperativo":
+            ja = set()
+            for jj in estado["jogadores"].values():
+                ja |= jj["palavras"]
+        else:
+            ja = estado["jogadores"][nome]["palavras"]
+        candidatas = [w for w in estado["grade_palavras"] if len(w) == 3 and w not in ja]
         if not candidatas:
-            return jsonify({"ok": True, "palavra": None,
-                            "motivo": "achou todas de 3 letras"})
+            return jsonify({"ok": True, "palavra": None, "motivo": "achou todas de 3 letras"})
         return jsonify({"ok": True, "palavra": random.choice(candidatas)})
 
 
-@app.route("/api/estado")
-def get_estado():
+@app.route("/api/sala/<sala_id>/estado")
+def get_estado(sala_id):
     _, nome, erro = _exigir_login()
-    if erro:
-        return erro
+    if erro: return erro
     with LOCK:
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
         agora = time.time()
         if nome in estado["jogadores"]:
             estado["jogadores"][nome]["visto"] = agora
-
-        # mecânicas do sobrevivência antes de avaliar o fim
-        _aplicar_sobrevivencia()
-        _checar_eliminados()
-        _checar_fim()
-        _limpar_ausentes()
+        _aplicar_sobrevivencia(estado)
+        _checar_eliminados(estado)
+        _checar_fim(estado)
+        _limpar_ausentes(sala)
 
         modo = estado["config"]["modo"]
+        modo_cat = estado["config"]["modo_categoria"]
         jogando = estado["fase"] == "jogando"
 
-        # tempo restante: individual no sobrevivência, da sala nos demais
         restante = 0
         if jogando:
             if modo == "sobrevivencia" and nome in estado["jogadores"]:
                 fim_ind = estado["jogadores"][nome].get("fim_individual", agora)
                 restante = max(0, int(round(fim_ind - agora)))
             elif modo == "caca":
-                restante = -1          # sem limite de tempo
+                restante = -1
             else:
                 restante = max(0, int(estado["fim"] - agora))
 
@@ -728,6 +689,13 @@ def get_estado():
         if nome in estado["jogadores"]:
             minhas = sorted(estado["jogadores"][nome]["palavras"])
             vivo = estado["jogadores"][nome].get("vivo", True)
+
+        palavras_coletivas = None
+        if modo_cat == "cooperativo" and jogando:
+            col = set()
+            for j in estado["jogadores"].values():
+                col |= j["palavras"]
+            palavras_coletivas = sorted(col)
 
         jogadores_info = []
         for n, j in estado["jogadores"].items():
@@ -740,15 +708,11 @@ def get_estado():
                 info["palavras"] = len(j["palavras"])
             jogadores_info.append(info)
 
-        # aviso de embaralhamento: piscar por SOBREV_AVISO segundos
-        embaralhou_ha = None
-        cresceu_ha = None
-        celulas_novas = []
+        embaralhou_ha = None; cresceu_ha = None; celulas_novas = []
         if modo == "sobrevivencia" and jogando:
             t = estado["sobrev"].get("embaralhou_em", 0)
             if t and (agora - t) <= SOBREV_AVISO:
                 embaralhou_ha = round(agora - t, 1)
-            # crescimento: janela maior, pra dar tempo da animação rodar
             tc = estado["sobrev"].get("cresceu_em", 0)
             if tc and (agora - tc) <= 6:
                 cresceu_ha = round(agora - tc, 1)
@@ -757,14 +721,13 @@ def get_estado():
         resp = {
             "fase": estado["fase"],
             "config": estado["config"],
+            "sala_nome": sala["nome"],
             "host": estado["host"],
             "sou_host": estado["host"] == nome,
             "rodada": estado["rodada"],
             "grade": estado["grade"] if jogando else [],
             "linhas": estado["linhas"],
             "colunas": estado["colunas"],
-            # a contagem NÃO é exposta durante a partida (spoiler);
-            # só sai no resumo, depois que o tempo acaba.
             "resumo": estado["resumo"] if estado["fase"] in ("resultado", "fim_campeonato") else {},
             "restante": restante,
             "vivo": vivo,
@@ -776,6 +739,8 @@ def get_estado():
             "historico": estado["historico"],
             "ranking": estado["ranking"],
         }
+        if palavras_coletivas is not None:
+            resp["palavras_coletivas"] = palavras_coletivas
         if embaralhou_ha is not None:
             resp["embaralhou_ha"] = embaralhou_ha
             resp["aviso_embaralho"] = SOBREV_AVISO
@@ -783,11 +748,48 @@ def get_estado():
             resp["cresceu_ha"] = cresceu_ha
             resp["celulas_novas"] = celulas_novas
         if modo == "caca" and jogando:
-            resp["progresso"] = {
-                "achadas": len(minhas),
-                "total": len(estado["grade_palavras"]),
-            }
+            if modo_cat == "cooperativo":
+                col2 = set()
+                for j in estado["jogadores"].values():
+                    col2 |= j["palavras"]
+                resp["progresso"] = {"achadas": len(col2), "total": len(estado["grade_palavras"])}
+            else:
+                resp["progresso"] = {"achadas": len(minhas), "total": len(estado["grade_palavras"])}
         return jsonify(resp)
+
+
+@app.route("/api/sala/<sala_id>/palavras", methods=["GET", "POST"])
+def palavras_extras(sala_id):
+    _, _, erro = _exigir_login()
+    if erro: return erro
+    if request.method == "GET":
+        return jsonify({"palavras": sorted(gc.EXTRAS)})
+    data = request.json or {}
+    texto = (data.get("palavras") or "").upper()
+    acao = data.get("acao", "add")
+    novas = [p.strip() for p in texto.replace(",", " ").replace("\n", " ").split()]
+    novas = ["".join(c for c in p if c.isalpha()) for p in novas]
+    novas = [p for p in novas if 3 <= len(p) <= 16]
+    aplicadas, ignoradas = [], []
+    with LOCK:
+        for p in novas:
+            if acao == "remover":
+                (aplicadas if gc.remover_palavra(p) else ignoradas).append(p)
+            else:
+                (aplicadas if gc.adicionar_palavra(p) else ignoradas).append(p)
+    return jsonify({"ok": True, "acao": acao, "aplicadas": aplicadas,
+                    "ignoradas": ignoradas, "total_extras": len(gc.EXTRAS)})
+
+
+@app.route("/api/sala/<sala_id>/zerar_ranking", methods=["POST"])
+def zerar_ranking(sala_id):
+    _, _, erro = _exigir_login()
+    if erro: return erro
+    with LOCK:
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        sala["estado"]["ranking"] = {}
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
