@@ -9,6 +9,10 @@ load_dotenv()  # carrega .env local antes de importar módulos que leem env vars
 from flask import Flask, request, jsonify, send_from_directory
 import game_core as gc
 import auth, db
+import achievements as ach
+
+# ids de avatares válidos (a arte vive no frontend; aqui só validamos o id)
+AVATARES_VALIDOS = {f"a{i}" for i in range(1, 13)}
 
 app = Flask(__name__, static_folder="static")
 LOCK = threading.Lock()
@@ -95,6 +99,15 @@ def _sala_ou_erro(sala_id):
     if not sala:
         return None, (jsonify({"erro": "sala nao encontrada"}), 404)
     return sala, None
+
+
+def _avatar_de(pid):
+    if not pid:
+        return "a1"
+    try:
+        return db.obter_avatar(pid)
+    except Exception:
+        return "a1"
 
 
 def _eh_host(nome, estado):
@@ -275,6 +288,9 @@ def _checar_fim(estado):
             ganhou = (j.get("time") or "Sem time") == venc
         else:
             ganhou = nome == venc
+        hist = {}
+        for w in palavras:
+            hist[len(w)] = hist.get(len(w), 0) + 1
         pendentes.append((j["perfil_id"], {
             "mode": modo,
             "team": j.get("time") if modo == "times" else None,
@@ -285,6 +301,8 @@ def _checar_fim(estado):
             "words_per_second": (len(palavras) / duracao) if duracao > 0 else 0,
             "won": ganhou,
             "duration_seconds": duracao,
+            "exclusivas_count": len(dados_placar.get("exclusivas", [])),
+            "word_len_hist": hist,
         }))
 
     if venc is not None:
@@ -357,7 +375,7 @@ def perfil_criar():
         return jsonify({"ok": False, "motivo": "usuario ja existe"}), 409
     pid = db.criar_perfil(username, auth.hash_pin(pin))
     token = auth.gerar_token(pid, username)
-    return jsonify({"ok": True, "token": token, "username": username})
+    return jsonify({"ok": True, "token": token, "username": username, "avatar": "a1"})
 
 
 @app.route("/api/perfil/login", methods=["POST"])
@@ -369,7 +387,8 @@ def perfil_login():
     if not perfil or not auth.checar_pin(pin, perfil["pin_hash"]):
         return jsonify({"ok": False, "motivo": "usuario ou pin incorretos"}), 401
     token = auth.gerar_token(perfil["id"], username)
-    return jsonify({"ok": True, "token": token, "username": username})
+    return jsonify({"ok": True, "token": token, "username": username,
+                    "avatar": perfil.get("avatar", "a1")})
 
 
 @app.route("/api/perfil/stats")
@@ -382,6 +401,34 @@ def perfil_stats():
     return jsonify({"ok": True,
                     "stats": {k: (str(v) if hasattr(v, '__float__') else v) for k, v in stats.items()},
                     "username": nome})
+
+
+@app.route("/api/perfil/avatar", methods=["POST"])
+def perfil_avatar():
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    avatar = (data.get("avatar") or "").strip()
+    if avatar not in AVATARES_VALIDOS:
+        return jsonify({"ok": False, "motivo": "avatar invalido"}), 400
+    try:
+        db.set_avatar(pid, avatar)
+    except Exception as e:
+        return jsonify({"ok": False, "erro": str(e)}), 500
+    return jsonify({"ok": True, "avatar": avatar})
+
+
+@app.route("/api/perfil/achievements")
+def perfil_achievements():
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    try:
+        desbloqueados = db.obter_achievements(pid)
+    except Exception as e:
+        return jsonify({"ok": False, "erro": str(e)}), 500
+    return jsonify({"ok": True,
+                    "catalogo": ach.catalogo(),
+                    "desbloqueados": desbloqueados})
 
 
 @app.route("/api/perfil/historico")
@@ -437,13 +484,14 @@ def criar_sala():
         return jsonify({"ok": False, "motivo": "nome da sala obrigatorio"}), 400
     senha = (data.get("senha") or "").strip()
     senha_hash = auth.hash_pin(senha) if senha else None
+    avatar = _avatar_de(pid)
     with LOCK:
         sid = _gerar_sala_id()
         e = estado_inicial()
         e["jogadores"][nome] = {
             "palavras": set(), "visto": time.time(), "time": None,
             "vivo": True, "fim_individual": 0, "ultima_palavra": 0,
-            "perfil_id": pid,
+            "perfil_id": pid, "avatar": avatar,
         }
         e["host"] = nome
         salas[sid] = {
@@ -458,6 +506,7 @@ def entrar_sala(sala_id):
     pid, nome, erro = _exigir_login()
     if erro: return erro
     data = request.json or {}
+    avatar = _avatar_de(pid)
     with LOCK:
         sala, err = _sala_ou_erro(sala_id)
         if err: return err
@@ -471,11 +520,12 @@ def entrar_sala(sala_id):
             estado["jogadores"][nome] = {
                 "palavras": set(), "visto": time.time(), "time": None,
                 "vivo": True, "fim_individual": 0, "ultima_palavra": 0,
-                "perfil_id": pid,
+                "perfil_id": pid, "avatar": avatar,
             }
         else:
             estado["jogadores"][nome]["visto"] = time.time()
             estado["jogadores"][nome]["perfil_id"] = pid
+            estado["jogadores"][nome]["avatar"] = avatar
         if estado["host"] is None or estado["host"] not in estado["jogadores"]:
             estado["host"] = nome
         sala.pop("vazia_desde", None)
@@ -763,7 +813,8 @@ def get_estado(sala_id):
 
         jogadores_info = []
         for n, j in estado["jogadores"].items():
-            info = {"nome": n, "time": j["time"]}
+            info = {"nome": n, "time": j["time"], "avatar": j.get("avatar", "a1"),
+                    "cor": j.get("cor")}
             if modo == "sobrevivencia":
                 info["vivo"] = j.get("vivo", True)
                 info["restante"] = max(0, int(round(j.get("fim_individual", agora) - agora)))

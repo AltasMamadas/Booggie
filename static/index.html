@@ -106,6 +106,17 @@
   .cor-picker-linha label{font-size:14px;color:var(--texto);}
   .cor-preset{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
   .cor-preset-btn{width:auto;padding:7px 12px;font-size:12px;font-weight:600;border-radius:8px;margin-bottom:0;}
+  .avatar-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
+  .avatar-op{width:auto;padding:5px;margin:0;background:var(--btn-sec-bg);border:2px solid transparent;
+    border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .avatar-op.sel{border-color:var(--accent);box-shadow:0 0 10px rgba(46,196,182,.4);}
+  .ach-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+  .ach{background:var(--btn-sec-bg);border:1px solid var(--borda);border-radius:10px;padding:10px;text-align:center;}
+  .ach.off{opacity:.4;filter:grayscale(.7);}
+  .ach.on{border-color:var(--accent);}
+  .ach-ic{font-size:26px;line-height:1;margin-bottom:4px;}
+  .ach-nome{font-size:13px;font-weight:700;color:var(--texto);}
+  .ach-desc{font-size:11px;color:var(--sub-txt);margin-top:2px;}
   .cell.bloqueada{opacity:.28;pointer-events:none;filter:grayscale(1);}
   @keyframes dicaBrilho{0%,100%{box-shadow:0 3px 0 rgba(0,0,0,.4);border-color:var(--borda);}
     50%{box-shadow:0 0 14px 3px rgba(46,196,182,.55);border-color:var(--accent);}}
@@ -469,9 +480,11 @@
     <div class="lb-tabs" style="margin-bottom:10px">
       <button id="stats-tab-0" class="lb-tab" onclick="mudarAbaStats(0)">📊 Resumo</button>
       <button id="stats-tab-1" class="lb-tab sec" onclick="mudarAbaStats(1)">📜 Histórico</button>
+      <button id="stats-tab-2" class="lb-tab sec" onclick="mudarAbaStats(2)">🏅 Conquistas</button>
     </div>
     <div id="stats-conteudo"><div class="aviso">Carregando...</div></div>
     <div id="stats-historico" class="hidden"><div class="aviso">Carregando...</div></div>
+    <div id="stats-conquistas" class="hidden"><div class="aviso">Carregando...</div></div>
     <button class="sec" onclick="fecharStats()">Voltar</button>
   </div>
 
@@ -507,6 +520,10 @@
         <button class="sec mini" onclick="abrirStats()">📊 Estatísticas</button>
         <button class="sec mini" onclick="logoutPerfil()">Sair da conta</button>
       </div>
+    </div>
+    <div class="card">
+      <h3>Avatar</h3>
+      <div id="avatar-grid" class="avatar-grid"></div>
     </div>
     <div class="card">
       <h3>Som</h3>
@@ -587,7 +604,7 @@
 <script>
 // ---- state ----
 let NOME=null, faseAtual=null, rodadaAtual=-1;
-let PERFIL_TOKEN=null, PERFIL_USER=null, abaPerfil="entrar";
+let PERFIL_TOKEN=null, PERFIL_USER=null, PERFIL_AVATAR="a1", abaPerfil="entrar";
 let SALA_ID=null, SALA_NOME=null;
 let catSel="competitivo", serieSel=1, corTimeSel=1;
 let lbDados=null, lbAba=0;
@@ -678,10 +695,12 @@ async function api(url,body){
 function apiSala(path,body){return api(`/api/sala/${SALA_ID}${path}`,body);}
 
 // ---- perfil ----
-function salvarPerfilLocal(token,username,sala_id){
+function salvarPerfilLocal(token,username,sala_id,avatar){
   PERFIL_TOKEN=token; PERFIL_USER=username;
-  try{localStorage.setItem("bg_perfil",JSON.stringify({token,username,sala_id}));}catch(e){}
-  if($("conta-user")) $("conta-user").textContent="Logado como: "+username;
+  if(avatar) PERFIL_AVATAR=avatar;
+  try{localStorage.setItem("bg_perfil",JSON.stringify({token,username,sala_id,avatar:PERFIL_AVATAR}));}catch(e){}
+  if($("conta-user")) $("conta-user").innerHTML=
+    `<span style="display:inline-flex;align-items:center;gap:8px;vertical-align:middle">${avatarSVG(PERFIL_AVATAR,28)} Logado como: ${esc(username)}</span>`;
 }
 function mostrarAbaPerfil(aba){
   abaPerfil=aba;
@@ -699,13 +718,13 @@ async function submeterPerfil(){
   const url=abaPerfil==="entrar"?"/api/perfil/login":"/api/perfil/criar";
   const r=await api(url,{username,pin});
   if(r&&r.ok){
-    salvarPerfilLocal(r.token,r.username,null);
+    salvarPerfilLocal(r.token,r.username,null,r.avatar);
     $("perfil-msg").textContent="";
     const salaPend=sessionStorage.getItem("sala_pendente");
     if(salaPend){
       sessionStorage.removeItem("sala_pendente");
       const re=await api(`/api/sala/${salaPend}/entrar`,{});
-      if(re?.ok){SALA_ID=salaPend;SALA_NOME=re.sala_nome;NOME=re.nome;salvarPerfilLocal(r.token,r.username,salaPend);iniciarPoll();return;}
+      if(re?.ok){SALA_ID=salaPend;SALA_NOME=re.sala_nome;NOME=re.nome;salvarPerfilLocal(r.token,r.username,salaPend,r.avatar);iniciarPoll();return;}
     }
     irHome();
   }else{
@@ -872,6 +891,32 @@ function atualizarUIConfig(){
 }
 const COR_TIME={1:"#E63946",2:"#457B9D",3:"#2A9D8F",4:"#F4A261",5:"#9D84B7",6:"#F77F00"};
 const COR_TIME_TEXT={1:"#fff",2:"#fff",3:"#fff",4:"#333",5:"#fff",6:"#fff"};
+
+// ---- avatares (arte gerada em SVG; o backend só guarda o id "a1".."a12") ----
+const AVATAR_IDS=["a1","a2","a3","a4","a5","a6","a7","a8","a9","a10","a11","a12"];
+const AVATAR_COR={a1:"#2ec4b6",a2:"#e05c6e",a3:"#f4a261",a4:"#457b9d",a5:"#9d84b7",
+  a6:"#4ade80",a7:"#f77f00",a8:"#e0bc32",a9:"#ef476f",a10:"#06d6a0",a11:"#118ab2",a12:"#a78bfa"};
+function avatarSVG(id,size){
+  size=size||40;
+  const cor=AVATAR_COR[id]||AVATAR_COR.a1;
+  const n=parseInt((id||"a1").slice(1))||1;
+  const olhos=n%3, boca=n%4, topo=n%3;
+  let acc="";
+  if(topo===1) acc=`<line x1="50" y1="16" x2="50" y2="4" stroke="${cor}" stroke-width="4"/><circle cx="50" cy="3" r="5" fill="${cor}"/>`;
+  else if(topo===2) acc=`<path d="M26 18 L20 4 L34 14 Z" fill="${cor}"/><path d="M74 18 L80 4 L66 14 Z" fill="${cor}"/>`;
+  let eyes;
+  if(olhos===2) eyes=`<circle cx="50" cy="46" r="11" fill="#fff"/><circle cx="50" cy="48" r="5" fill="#1a2230"/>`;
+  else eyes=`<circle cx="38" cy="46" r="8" fill="#fff"/><circle cx="62" cy="46" r="8" fill="#fff"/>`+
+    (olhos===1?`<circle cx="40" cy="48" r="3.5" fill="#1a2230"/><circle cx="64" cy="48" r="3.5" fill="#1a2230"/>`
+              :`<circle cx="38" cy="46" r="3.5" fill="#1a2230"/><circle cx="62" cy="46" r="3.5" fill="#1a2230"/>`);
+  let mouth;
+  if(boca===0) mouth=`<path d="M38 64 Q50 74 62 64" stroke="#1a2230" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+  else if(boca===1) mouth=`<ellipse cx="50" cy="67" rx="8" ry="9" fill="#1a2230"/>`;
+  else if(boca===2) mouth=`<line x1="40" y1="66" x2="60" y2="66" stroke="#1a2230" stroke-width="4" stroke-linecap="round"/>`;
+  else mouth=`<rect x="40" y="62" width="20" height="9" rx="2" fill="#fff" stroke="#1a2230" stroke-width="3"/><line x1="50" y1="62" x2="50" y2="71" stroke="#1a2230" stroke-width="2"/>`;
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block">
+    ${acc}<rect x="15" y="15" width="70" height="70" rx="26" fill="${cor}"/>${eyes}${mouth}</svg>`;
+}
 function escolherCorTime(cor){
   corTimeSel=cor;
   document.querySelectorAll("[data-cor]").forEach(el=>el.classList.toggle("sel",+el.dataset.cor===cor));
@@ -1003,7 +1048,7 @@ function aplicarEstado(st){
   if(st.fase==="lobby"){
     $("qtd").textContent=st.jogadores.length;
     // só reconstrói a lista se algo mudou (evita thrash de DOM a cada 1,5s)
-    const sig=st.host+"|"+st.jogadores.map(j=>`${j.nome}:${j.time||""}:${j.cor||""}`).join(",");
+    const sig=st.host+"|"+st.jogadores.map(j=>`${j.nome}:${j.time||""}:${j.cor||""}:${j.avatar||""}`).join(",");
     if(sig!==ultimaListaJSig){
       ultimaListaJSig=sig;
       $("lista-j").innerHTML=st.jogadores.map(j=>{
@@ -1011,7 +1056,8 @@ function aplicarEstado(st){
         const ttStyle=cor?`style="background:${cor};color:${COR_TIME_TEXT[j.cor]}"`:""
         const tt=j.time?` <span class="time-badge" ${ttStyle}>${esc(j.time)}</span>`:"";
         const host=j.nome===st.host?' <span class="time-badge">host</span>':"";
-        return `<span class="badge">${esc(j.nome)}${host}${tt}</span>`;
+        const av=`<span style="display:inline-flex;vertical-align:middle;margin-right:5px">${avatarSVG(j.avatar||"a1",22)}</span>`;
+        return `<span class="badge" style="display:inline-flex;align-items:center">${av}${esc(j.nome)}${host}${tt}</span>`;
       }).join("");
     }
     carregarPalavras();
@@ -1505,9 +1551,10 @@ function renderizarLb(){
     const val=cat.fmt(row[cat.key],row);
     const sub=cat.sub?`<br><span style="font-size:11px;color:#9a8a72">${cat.sub(row)}</span>`:"";
     const eu=row.username===PERFIL_USER;
+    const av=`<span style="display:inline-flex;vertical-align:middle;margin-right:6px">${avatarSVG(row.avatar||"a1",24)}</span>`;
     return`<div class="rank-linha${eu?" plinha eu":""}">
       <div class="rank-pos">${medalha(i)}</div>
-      <div class="rank-nome">${esc(row.username)}${eu?" (você)":""}</div>
+      <div class="rank-nome" style="display:flex;align-items:center">${av}<span>${esc(row.username)}${eu?" (você)":""}</span></div>
       <div class="rank-vals"><b>${val}</b>${sub}</div>
     </div>`;
   }).join("");
@@ -1519,11 +1566,54 @@ async function abrirStats(){show("stats");mudarAbaStats(0);}
 function fecharStats(){show("config");}
 function mudarAbaStats(idx){
   statsAbaAtual=idx;
-  [0,1].forEach(i=>{const b=$("stats-tab-"+i);if(b)b.classList.toggle("sec",i!==idx);});
+  [0,1,2].forEach(i=>{const b=$("stats-tab-"+i);if(b)b.classList.toggle("sec",i!==idx);});
   $("stats-conteudo").classList.toggle("hidden",idx!==0);
   $("stats-historico").classList.toggle("hidden",idx!==1);
+  $("stats-conquistas").classList.toggle("hidden",idx!==2);
   if(idx===0) carregarMeusStats();
-  else carregarHistorico();
+  else if(idx===1) carregarHistorico();
+  else carregarConquistas();
+}
+async function carregarConquistas(){
+  const el=$("stats-conquistas");
+  el.innerHTML='<div class="aviso">Carregando...</div>';
+  const r=await api("/api/perfil/achievements");
+  if(!r||!r.ok){el.innerHTML='<div class="aviso">Erro ao carregar.</div>';return;}
+  const desb=r.desbloqueados||{};
+  const total=r.catalogo.length, ganhos=Object.keys(desb).length;
+  // agrupa por categoria
+  const cats={};
+  r.catalogo.forEach(a=>{(cats[a.categoria]=cats[a.categoria]||[]).push(a);});
+  let html=`<div class="aviso left" style="margin-top:0;margin-bottom:10px">${ganhos} de ${total} conquistas desbloqueadas</div>`;
+  for(const cat in cats){
+    html+=`<div class="card" style="padding:12px"><h3 style="margin-top:0">${esc(cat)}</h3><div class="ach-grid">`;
+    html+=cats[cat].map(a=>{
+      const on=!!desb[a.id];
+      return `<div class="ach ${on?"on":"off"}">
+        <div class="ach-ic">${a.icone}</div>
+        <div class="ach-nome">${esc(a.nome)}</div>
+        <div class="ach-desc">${esc(a.desc)}</div>
+      </div>`;
+    }).join("");
+    html+=`</div></div>`;
+  }
+  el.innerHTML=html;
+}
+// ---- avatar ----
+function renderAvatarGrid(){
+  const g=$("avatar-grid"); if(!g) return;
+  g.innerHTML=AVATAR_IDS.map(id=>
+    `<button class="avatar-op${id===PERFIL_AVATAR?" sel":""}" onclick="escolherAvatar('${id}')">${avatarSVG(id,46)}</button>`
+  ).join("");
+}
+async function escolherAvatar(id){
+  if(id===PERFIL_AVATAR) return;
+  const anterior=PERFIL_AVATAR;
+  PERFIL_AVATAR=id; renderAvatarGrid();
+  salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,SALA_ID,id);
+  const r=await api("/api/perfil/avatar",{avatar:id});
+  if(!r||!r.ok){PERFIL_AVATAR=anterior;renderAvatarGrid();salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,SALA_ID,anterior);return;}
+  ultimaListaJSig=null; // força re-render da lista do lobby com o novo avatar
 }
 async function carregarMeusStats(){
   $("stats-conteudo").innerHTML='<div class="aviso">Carregando...</div>';
@@ -1604,6 +1694,7 @@ function abrirConfig(){
                  faseAtual==="fim_campeonato"?"fim":
                  (SALA_ID?"lobby":"home");
     show("config");
+    renderAvatarGrid();
   }
 }
 function fecharConfig(){show(telaAnterior);}
@@ -1740,7 +1831,8 @@ async function enviarPalavras(acao){
   try{salvo=JSON.parse(localStorage.getItem("bg_perfil")||"null");}catch(e){}
   if(salvo?.token&&salvo?.username){
     PERFIL_TOKEN=salvo.token;PERFIL_USER=salvo.username;
-    if($("conta-user")) $("conta-user").textContent="Logado como: "+salvo.username;
+    if(salvo.avatar) PERFIL_AVATAR=salvo.avatar;
+    salvarPerfilLocal(salvo.token,salvo.username,salvo.sala_id,salvo.avatar);
     const salaAlvo=salaViaURL||salvo.sala_id;
     if(salaAlvo){
       const r=await api(`/api/sala/${salaAlvo}/entrar`,{});

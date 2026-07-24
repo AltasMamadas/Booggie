@@ -4,9 +4,11 @@ de partidas). Conexão direta via psycopg — sem ORM, condizente com o
 resto do projeto.
 """
 import os
+import json
 from contextlib import contextmanager
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
+import achievements as ach
 
 _DB_URL = os.environ.get("SUPABASE_DB_URL")
 if not _DB_URL:
@@ -48,10 +50,41 @@ def buscar_perfil(username):
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "select id, username, pin_hash from profiles where username = %s",
+                "select id, username, pin_hash, avatar from profiles where username = %s",
                 (username,),
             )
             return cur.fetchone()
+
+
+def obter_avatar(profile_id):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("select avatar from profiles where id = %s", (profile_id,))
+            r = cur.fetchone()
+            return r["avatar"] if r else "a1"
+
+
+def set_avatar(profile_id, avatar):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("update profiles set avatar = %s where id = %s",
+                        (avatar, profile_id))
+        conn.commit()
+
+
+def obter_achievements(profile_id):
+    """Ids desbloqueados + quando, para o perfil."""
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select achievement_id, unlocked_at from profile_achievements where profile_id = %s",
+                (profile_id,),
+            )
+            rows = cur.fetchall()
+    out = {}
+    for r in rows:
+        out[r["achievement_id"]] = r["unlocked_at"].isoformat() if r["unlocked_at"] else None
+    return out
 
 
 def obter_stats(profile_id):
@@ -68,6 +101,7 @@ def obter_leaderboard():
         with conn.cursor() as cur:
             cur.execute("""
                 select p.username,
+                       p.avatar,
                        s.best_score,
                        s.total_wins,
                        s.total_games,
@@ -117,10 +151,19 @@ def historico_partidas(profile_id, limit=20):
 def persistir_partida(profile_id, dados):
     """
     dados: {mode, team, score, words_found, longest_word, avg_word_length,
-            words_per_second, won, duration_seconds}
+            words_per_second, won, duration_seconds, exclusivas_count, word_len_hist}
+    Faz insert em match_history + atualização incremental de profile_stats
+    (incluindo os contadores jsonb) + desbloqueio de achievements, tudo numa
+    transação. Read-modify-write sob FOR UPDATE — seguro dada a baixa
+    concorrência por perfil (um jogador termina uma partida por vez).
+    Retorna a lista de ids de achievements recém-desbloqueados.
     """
     longest_word_len = len(dados["longest_word"] or "")
     total_word_chars = round((dados["avg_word_length"] or 0) * dados["words_found"])
+    modo = dados["mode"]
+    exclusivas = int(dados.get("exclusivas_count", 0))
+    hist = dados.get("word_len_hist") or {}
+    novos = []
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -130,8 +173,24 @@ def persistir_partida(profile_id, dados):
                    values (%(profile_id)s, %(mode)s, %(team)s, %(score)s,
                            %(words_found)s, %(longest_word)s, %(avg_word_length)s,
                            %(words_per_second)s, %(won)s, %(duration_seconds)s)""",
-                {**dados, "profile_id": profile_id},
+                {k: dados[k] for k in ("mode", "team", "score", "words_found",
+                                       "longest_word", "avg_word_length",
+                                       "words_per_second", "won", "duration_seconds")}
+                | {"profile_id": profile_id},
             )
+            # read-modify-write dos stats (com os jsonb) sob lock de linha
+            cur.execute("select * from profile_stats where profile_id = %s for update",
+                        (profile_id,))
+            s = cur.fetchone() or {}
+            mode_games = dict(s.get("mode_games") or {})
+            mode_wins = dict(s.get("mode_wins") or {})
+            wlc = dict(s.get("word_len_counts") or {})
+            mode_games[modo] = int(mode_games.get(modo, 0)) + 1
+            if dados["won"]:
+                mode_wins[modo] = int(mode_wins.get(modo, 0)) + 1
+            for k, v in hist.items():
+                wlc[str(k)] = int(wlc.get(str(k), 0)) + int(v)
+
             cur.execute(
                 """update profile_stats set
                      total_games = total_games + 1,
@@ -143,8 +202,13 @@ def persistir_partida(profile_id, dados):
                      total_words_found = total_words_found + %(words_found)s,
                      total_word_chars = total_word_chars + %(total_word_chars)s,
                      total_play_seconds = total_play_seconds + %(duration_seconds)s,
+                     total_exclusivas = total_exclusivas + %(exclusivas)s,
+                     mode_games = %(mode_games)s::jsonb,
+                     mode_wins = %(mode_wins)s::jsonb,
+                     word_len_counts = %(wlc)s::jsonb,
                      updated_at = now()
-                   where profile_id = %(profile_id)s""",
+                   where profile_id = %(profile_id)s
+                   returning *""",
                 {
                     "profile_id": profile_id,
                     "won_inc": 1 if dados["won"] else 0,
@@ -154,6 +218,28 @@ def persistir_partida(profile_id, dados):
                     "words_found": dados["words_found"],
                     "total_word_chars": total_word_chars,
                     "duration_seconds": dados["duration_seconds"],
+                    "exclusivas": exclusivas,
+                    "mode_games": json.dumps(mode_games),
+                    "mode_wins": json.dumps(mode_wins),
+                    "wlc": json.dumps(wlc),
                 },
             )
+            atualizado = cur.fetchone() or {}
+
+            # desbloqueio de achievements com base nos stats já atualizados
+            cumpridos = ach.avaliar(atualizado)
+            if cumpridos:
+                cur.execute(
+                    "select achievement_id from profile_achievements where profile_id = %s",
+                    (profile_id,),
+                )
+                ja = {r["achievement_id"] for r in cur.fetchall()}
+                novos = [aid for aid in cumpridos if aid not in ja]
+                for aid in novos:
+                    cur.execute(
+                        """insert into profile_achievements (profile_id, achievement_id)
+                           values (%s, %s) on conflict do nothing""",
+                        (profile_id, aid),
+                    )
         conn.commit()
+    return novos
