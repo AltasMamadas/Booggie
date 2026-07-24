@@ -710,7 +710,10 @@ def dica(sala_id):
         candidatas = [w for w in estado["grade_palavras"] if len(w) == 3 and w not in ja]
         if not candidatas:
             return jsonify({"ok": True, "palavra": None, "motivo": "achou todas de 3 letras"})
-        return jsonify({"ok": True, "palavra": random.choice(candidatas)})
+        escolhida = random.choice(candidatas)
+        caminho = gc.caminho_da_palavra(estado["grade"], escolhida,
+                                        linhas=estado["linhas"], colunas=estado["colunas"])
+        return jsonify({"ok": True, "palavra": escolhida, "caminho": caminho})
 
 
 @app.route("/api/sala/<sala_id>/estado")

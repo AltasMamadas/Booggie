@@ -107,6 +107,9 @@
   .cor-preset{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
   .cor-preset-btn{width:auto;padding:7px 12px;font-size:12px;font-weight:600;border-radius:8px;margin-bottom:0;}
   .cell.bloqueada{opacity:.28;pointer-events:none;filter:grayscale(1);}
+  @keyframes dicaBrilho{0%,100%{box-shadow:0 3px 0 rgba(0,0,0,.4);border-color:var(--borda);}
+    50%{box-shadow:0 0 14px 3px rgba(46,196,182,.55);border-color:var(--accent);}}
+  .cell.dica-glow{animation:dicaBrilho 1.8s ease-in-out infinite;}
   .disputa-box{background:rgba(46,196,182,.08);border:1px solid rgba(46,196,182,.25);border-radius:10px;padding:10px 12px;margin-bottom:10px;}
   .disputa-box h3{margin:0 0 8px;font-size:11px;color:var(--sub-txt);text-transform:uppercase;letter-spacing:1px;}
   .disputa-item{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:13px;}
@@ -1181,7 +1184,7 @@ function crescerGrade(grade,linhas,colunas,novas){
 }
 function atualizarLetras(grade){
   letters=grade.slice();
-  cells.forEach((c,i)=>{c.textContent=letters[i];});
+  cells.forEach((c,i)=>{c.textContent=letters[i];c.classList.remove("dica-glow");});
   path=[];hl();
 }
 function neigh(a,bb){
@@ -1267,6 +1270,7 @@ async function finalizar(){
         ultimaAchada=Date.now();
         $("dica-txt").textContent="";
         $("dica-txt").classList.remove("revelou");
+        limparDicaGlow();
       }
     }else if(r){
       msg(r.motivo==="sem tempo"?"Seu tempo acabou!":"Não vale","#a05a3c");
@@ -1304,12 +1308,19 @@ function atualizarBotaoDica(){
   if(falta>0){btn.disabled=true;btn.textContent=`💡 Dica em ${falta}s`;}
   else{btn.disabled=false;btn.textContent="💡 Dica";}
 }
+function limparDicaGlow(){
+  cells.forEach(c=>c.classList.remove("dica-glow"));
+}
 async function pedirDica(){
   if(segundosParaDica()>0)return;
   const r=await apiSala("/dica",{});
   if(!r||!r.ok){$("dica-txt").textContent="";return;}
+  limparDicaGlow();
   if(!r.palavra){$("dica-txt").textContent="Você já achou todas as de 3 letras!";}
-  else{$("dica-txt").textContent=r.palavra;Audio2.sfx("select");}
+  else{
+    $("dica-txt").textContent=r.palavra;Audio2.sfx("select");
+    if(Array.isArray(r.caminho)) r.caminho.forEach(i=>{if(cells[i])cells[i].classList.add("dica-glow");});
+  }
   ultimaAchada=Date.now();
   atualizarBotaoDica();
 }

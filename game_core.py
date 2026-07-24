@@ -133,6 +133,11 @@ def palavras_da_grade(grade, n=None, colunas=None):
     return _solver.listar_palavras(grade, _TRIE, n)
 
 
+def caminho_da_palavra(grade, palavra, linhas=None, colunas=None):
+    """Um caminho de células que forma a palavra na grade (ou None)."""
+    return _solver.achar_caminho(grade, palavra, linhas=linhas, colunas=colunas)
+
+
 def _vizinhos(a, b, n, colunas=None):
     """n = colunas quando a grade é quadrada; senão passe colunas explicitamente."""
     cols = colunas if colunas is not None else n

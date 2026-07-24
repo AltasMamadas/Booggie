@@ -136,3 +136,36 @@ def listar_palavras(grade, trie, n=None, linhas=None, colunas=None):
     for start in range(total):
         dfs(start, trie, {start}, "")
     return encontradas
+
+
+def achar_caminho(grade, palavra, linhas=None, colunas=None):
+    """Devolve UM caminho (lista de índices) que forma `palavra` na grade, ou
+    None se não houver. Usado pela dica para destacar as letras no tabuleiro."""
+    if not palavra:
+        return None
+    if linhas is None or colunas is None:
+        linhas, colunas = dims(grade)
+    viz = _vizinhos_idx(linhas, colunas)
+    palavra = palavra.upper()
+    alvo = len(palavra)
+
+    def dfs(i, pos, usados):
+        if grade[i] != palavra[pos]:
+            return None
+        if pos == alvo - 1:
+            return [i]
+        for j in viz[i]:
+            if j not in usados:
+                usados.add(j)
+                sub = dfs(j, pos + 1, usados)
+                usados.discard(j)
+                if sub is not None:
+                    return [i] + sub
+        return None
+
+    for start in range(len(grade)):
+        if grade[start] == palavra[0]:
+            r = dfs(start, 0, {start})
+            if r is not None:
+                return r
+    return None
