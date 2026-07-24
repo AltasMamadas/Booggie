@@ -78,6 +78,29 @@ def obter_leaderboard():
             return [dict(r) for r in cur.fetchall()]
 
 
+def historico_partidas(profile_id, limit=20):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """select mode, team, score, words_found, longest_word,
+                          words_per_second, won, duration_seconds,
+                          played_at
+                   from match_history
+                   where profile_id = %s
+                   order by played_at desc
+                   limit %s""",
+                (profile_id, limit),
+            )
+            rows = cur.fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("played_at"):
+            d["played_at"] = d["played_at"].isoformat()
+        result.append(d)
+    return result
+
+
 def persistir_partida(profile_id, dados):
     """
     dados: {mode, team, score, words_found, longest_word, avg_word_length,

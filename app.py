@@ -53,6 +53,9 @@ def estado_inicial():
         "vitorias": {},
         "historico": [],
         "ranking": {},
+        "celulas_bloqueadas": {},  # restricao: {idx: timestamp_expira}
+        "disputa": {},             # duelo: {word: {achador, expira}}
+        "bonus_duelo": {},         # duelo: {nome: pts_bonus}
     }
 
 
@@ -182,6 +185,9 @@ def _reset_para_lobby(estado, full=False):
     estado["fim"] = 0
     estado["placar"] = {}
     estado["placar_times"] = {}
+    estado["celulas_bloqueadas"] = {}
+    estado["disputa"] = {}
+    estado["bonus_duelo"] = {}
     for j in estado["jogadores"].values():
         j["palavras"] = set()
     if full:
@@ -205,7 +211,8 @@ def _checar_fim(estado):
     if estado["fase"] != "jogando" or time.time() < estado["fim"]:
         return
     jogadores_palavras = {n: j["palavras"] for n, j in estado["jogadores"].items()}
-    if estado["config"]["modo"] == "times":
+    modo = estado["config"]["modo"]
+    if modo == "times":
         times = {n: (j["time"] or "Sem time") for n, j in estado["jogadores"].items()}
         ind, pt = gc.resolver_placar_times(jogadores_palavras, times)
         estado["placar"] = ind
@@ -213,6 +220,14 @@ def _checar_fim(estado):
     else:
         estado["placar"] = gc.resolver_placar(jogadores_palavras)
         estado["placar_times"] = {}
+
+    if modo == "duelo":
+        for word, d in list(estado["disputa"].items()):
+            estado["bonus_duelo"][d["achador"]] = estado["bonus_duelo"].get(d["achador"], 0) + 2
+        estado["disputa"] = {}
+        for nome_b, bonus in estado["bonus_duelo"].items():
+            if nome_b in estado["placar"]:
+                estado["placar"][nome_b]["pontos"] += bonus
 
     for nome, dados in estado["placar"].items():
         r = estado["ranking"].setdefault(nome, {"total": 0, "melhor": 0, "partidas": 0})
@@ -238,7 +253,6 @@ def _checar_fim(estado):
 
     venc = _vencedor_da_partida(estado)
     duracao = time.time() - estado["inicio"]
-    modo = estado["config"]["modo"]
     for nome, dados_placar in estado["placar"].items():
         j = estado["jogadores"].get(nome)
         if not j or not j.get("perfil_id"):
@@ -353,6 +367,17 @@ def perfil_stats():
     return jsonify({"ok": True,
                     "stats": {k: (str(v) if hasattr(v, '__float__') else v) for k, v in stats.items()},
                     "username": nome})
+
+
+@app.route("/api/perfil/historico")
+def perfil_historico():
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    try:
+        hist = db.historico_partidas(pid)
+    except Exception as e:
+        return jsonify({"ok": False, "erro": str(e)})
+    return jsonify({"ok": True, "historico": hist})
 
 
 @app.route("/api/leaderboard")
@@ -491,7 +516,7 @@ def config_sala(sala_id):
             c["modo_categoria"] = data["modo_categoria"]
             if data["modo_categoria"] == "cooperativo":
                 c["modo"] = "caca"
-        if "modo" in data and data["modo"] in ("individual", "times", "sobrevivencia"):
+        if "modo" in data and data["modo"] in ("individual", "times", "sobrevivencia", "restricao", "duelo"):
             if c["modo_categoria"] == "competitivo":
                 c["modo"] = data["modo"]
         if "n_partidas" in data and int(data["n_partidas"]) in (1, 3, 5, 7):
@@ -606,6 +631,23 @@ def submeter(sala_id):
         if not ja:
             j["ultima_palavra"] = agora
         resp = {"ok": True, "palavra": w, "base": gc.pontos_base(w), "repetida": ja}
+
+        if not ja:
+            if modo == "restricao":
+                for idx in caminho:
+                    estado["celulas_bloqueadas"][idx] = agora + 5
+            elif modo == "duelo":
+                for word_exp, d in list(estado["disputa"].items()):
+                    if d["expira"] < agora:
+                        estado["bonus_duelo"][d["achador"]] = estado["bonus_duelo"].get(d["achador"], 0) + 2
+                        del estado["disputa"][word_exp]
+                if w in estado["disputa"]:
+                    del estado["disputa"][w]
+                    resp["defendeu"] = True
+                else:
+                    estado["disputa"][w] = {"achador": nome, "expira": agora + 10}
+                    resp["em_disputa"] = True
+
         if modo == "sobrevivencia" and not ja:
             ganho = bonus_tempo(w)
             j["fim_individual"] = j.get("fim_individual", agora) + ganho
@@ -741,6 +783,19 @@ def get_estado(sala_id):
         }
         if palavras_coletivas is not None:
             resp["palavras_coletivas"] = palavras_coletivas
+        if modo == "restricao" and jogando:
+            estado["celulas_bloqueadas"] = {k: v for k, v in estado["celulas_bloqueadas"].items() if v > agora}
+            resp["celulas_bloqueadas"] = list(estado["celulas_bloqueadas"].keys())
+        if modo == "duelo" and jogando:
+            for word_exp, d in list(estado["disputa"].items()):
+                if d["expira"] < agora:
+                    estado["bonus_duelo"][d["achador"]] = estado["bonus_duelo"].get(d["achador"], 0) + 2
+                    del estado["disputa"][word_exp]
+            resp["disputa"] = [
+                {"palavra": w, "achador": d["achador"], "expira_em": round(d["expira"] - agora, 1)}
+                for w, d in estado["disputa"].items()
+            ]
+            resp["bonus_duelo"] = estado["bonus_duelo"]
         if embaralhou_ha is not None:
             resp["embaralhou_ha"] = embaralhou_ha
             resp["aviso_embaralho"] = SOBREV_AVISO

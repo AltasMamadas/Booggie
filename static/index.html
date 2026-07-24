@@ -106,6 +106,13 @@
   .cor-picker-linha label{font-size:14px;color:var(--texto);}
   .cor-preset{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
   .cor-preset-btn{width:auto;padding:7px 12px;font-size:12px;font-weight:600;border-radius:8px;margin-bottom:0;}
+  .cell.bloqueada{opacity:.28;pointer-events:none;filter:grayscale(1);}
+  .disputa-box{background:rgba(46,196,182,.08);border:1px solid rgba(46,196,182,.25);border-radius:10px;padding:10px 12px;margin-bottom:10px;}
+  .disputa-box h3{margin:0 0 8px;font-size:11px;color:var(--sub-txt);text-transform:uppercase;letter-spacing:1px;}
+  .disputa-item{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:13px;}
+  .disputa-word{font-weight:700;color:var(--accent);letter-spacing:1px;}
+  .disputa-timer{font-size:12px;color:var(--sub-txt);}
+  .disputa-timer.urgente{color:var(--vermelho);font-weight:700;}
   @keyframes entraCelula{0%{opacity:0;transform:scale(.4) translateY(-14px);}60%{opacity:1;transform:scale(1.08) translateY(0);}100%{opacity:1;transform:scale(1);}}
   .cell.entrando{animation:entraCelula .42s cubic-bezier(.34,1.56,.64,1) backwards;}
   @keyframes surgeCelula{0%{opacity:0;transform:scale(.25) rotate(-12deg);background:#1a4a45;}45%{opacity:1;transform:scale(1.15) rotate(4deg);background:#1e5c55;}75%{transform:scale(.97) rotate(0deg);background:#1b3c38;}100%{opacity:1;transform:scale(1);background:var(--card-bg);}}
@@ -268,7 +275,10 @@
   <div id="tela-lobby" class="hidden">
     <div class="sala-lobby-header">
       <div class="sala-lobby-nome" id="sala-lobby-nome"></div>
-      <div class="sala-lobby-id" id="sala-lobby-id"></div>
+      <div style="display:flex;align-items:center;gap:8px;justify-content:center">
+        <div class="sala-lobby-id" id="sala-lobby-id"></div>
+        <button class="sec mini" style="width:auto;padding:4px 10px;font-size:12px;margin:0" onclick="compartilharSala()">🔗 Compartilhar</button>
+      </div>
     </div>
 
     <div class="card">
@@ -289,6 +299,8 @@
             <option value="individual">Free-for-all</option>
             <option value="times">Times</option>
             <option value="sobrevivencia">Sobrevivência</option>
+            <option value="restricao">Restrição</option>
+            <option value="duelo">Duelo</option>
           </select>
         </div>
       </div>
@@ -404,6 +416,7 @@
       <div class="prog-barra"><div class="prog-fill" id="prog-fill"></div></div>
     </div>
     <div id="board"></div>
+    <div id="disputa-box" class="disputa-box hidden"></div>
     <div id="dica-box" class="hidden">
       <button id="btn-dica" class="sec" onclick="pedirDica()">💡 Dica</button>
       <div class="dica-txt" id="dica-txt"></div>
@@ -450,7 +463,12 @@
       <div class="cfg-topo-titulo">Minhas Estatísticas</div>
       <button class="btn-cfg" onclick="fecharStats()">✕</button>
     </div>
-    <div class="card" id="stats-conteudo"><div class="aviso">Carregando...</div></div>
+    <div class="lb-tabs" style="margin-bottom:10px">
+      <button id="stats-tab-0" class="lb-tab" onclick="mudarAbaStats(0)">📊 Resumo</button>
+      <button id="stats-tab-1" class="lb-tab sec" onclick="mudarAbaStats(1)">📜 Histórico</button>
+    </div>
+    <div id="stats-conteudo"><div class="aviso">Carregando...</div></div>
+    <div id="stats-historico" class="hidden"><div class="aviso">Carregando...</div></div>
     <button class="sec" onclick="fecharStats()">Voltar</button>
   </div>
 
@@ -679,6 +697,12 @@ async function submeterPerfil(){
   if(r&&r.ok){
     salvarPerfilLocal(r.token,r.username,null);
     $("perfil-msg").textContent="";
+    const salaPend=sessionStorage.getItem("sala_pendente");
+    if(salaPend){
+      sessionStorage.removeItem("sala_pendente");
+      const re=await api(`/api/sala/${salaPend}/entrar`,{});
+      if(re?.ok){SALA_ID=salaPend;SALA_NOME=re.sala_nome;NOME=re.nome;salvarPerfilLocal(r.token,r.username,salaPend);iniciarPoll();return;}
+    }
     irHome();
   }else{
     $("perfil-msg").textContent=(r&&r.motivo)||"Não deu pra entrar. Tenta de novo.";
@@ -702,6 +726,14 @@ function logoutPerfil(){
 function irHome(){
   if($("home-user-nome")) $("home-user-nome").textContent=PERFIL_USER||"";
   show("home");
+}
+function compartilharSala(){
+  if(!SALA_ID) return;
+  const url=location.origin+"?sala="+SALA_ID;
+  navigator.clipboard.writeText(url).then(()=>{
+    const btn=document.querySelector('[onclick="compartilharSala()"]');
+    if(btn){const orig=btn.textContent;btn.textContent="✅ Copiado!";setTimeout(()=>btn.textContent=orig,2000);}
+  }).catch(()=>prompt("Copie o link:",url));
 }
 function irCriarSala(){
   $("nome-sala").value="";
@@ -816,6 +848,8 @@ const DESC_MODO={
   sobrevivencia:"Começa com 1:30. Cada palavra devolve tempo. O tabuleiro cresce e depois embaralha.",
   caca_coop:"Caça cooperativa: encontrem todas as palavras juntos. Dica disponível.",
   caca:"Sem relógio: ache todas as palavras do tabuleiro. Dica disponível.",
+  restricao:"Quando alguém acha uma palavra, as letras usadas ficam bloqueadas por 5s para os outros.",
+  duelo:"Palavra achada fica em disputa por 10s. Se o adversário achar também = defesa. Se não = +2 pts de bônus.",
 };
 function atualizarUIConfig(){
   const modo=catSel==="cooperativo"?"caca":($("cfg-modo")?.value||"individual");
@@ -1034,6 +1068,24 @@ function aplicarEstado(st){
       ultimoProg=achadas;
     }
 
+    // células bloqueadas (modo restrição)
+    const bloqueadas=new Set(st.celulas_bloqueadas||[]);
+    cells.forEach((c,i)=>c.classList.toggle("bloqueada",bloqueadas.has(i)));
+
+    // disputa (modo duelo)
+    const dispBox=$("disputa-box");
+    if(modo==="duelo"&&st.disputa&&st.disputa.length){
+      dispBox.classList.remove("hidden");
+      dispBox.innerHTML=`<h3>⚔️ Em disputa</h3>`+st.disputa.map(d=>{
+        const t=Math.max(0,d.expira_em);
+        const urgente=t<=4;
+        return`<div class="disputa-item">
+          <span class="disputa-word">${esc(d.palavra)}</span>
+          <span class="disputa-timer${urgente?" urgente":""}">${d.achador===NOME?"seu bônus em "+t.toFixed(0)+"s":"defenda! "+t.toFixed(0)+"s"}</span>
+        </div>`;
+      }).join("");
+    }else{dispBox.classList.add("hidden");}
+
     const temDica=["individual","times","caca"].includes(modo);
     $("dica-box").classList.toggle("hidden",!temDica);
     if(temDica) atualizarBotaoDica();
@@ -1200,9 +1252,11 @@ async function finalizar(){
       if(r.repetida){msg("Já tinha essa","#b0a48c");Audio2.sfx("repetida");}
       else{
         const bonus=r.ganho_tempo?`  +${r.ganho_tempo}s`:"";
-        msg("✓ "+r.palavra+bonus,"var(--verde)");
+        const duelo=r.defendeu?"⚔️ Defendida!":r.em_disputa?" ⏱️":"";
+        msg("✓ "+r.palavra+bonus+duelo,"var(--verde)");
         Audio2.sfx("valida");animarBoard("ok");
         if(r.ganho_tempo) flutuarGanho("+"+r.ganho_tempo+"s");
+        if(r.defendeu) flutuarGanho("Defesa!");
         ultimaAchada=Date.now();
         $("dica-txt").textContent="";
         $("dica-txt").classList.remove("revelou");
@@ -1442,13 +1496,49 @@ function renderizarLb(){
 }
 
 // ---- estatísticas ----
-async function abrirStats(){show("stats");await carregarMeusStats();}
+let statsAbaAtual=0;
+async function abrirStats(){show("stats");mudarAbaStats(0);}
 function fecharStats(){show("config");}
+function mudarAbaStats(idx){
+  statsAbaAtual=idx;
+  [0,1].forEach(i=>{const b=$("stats-tab-"+i);if(b)b.classList.toggle("sec",i!==idx);});
+  $("stats-conteudo").classList.toggle("hidden",idx!==0);
+  $("stats-historico").classList.toggle("hidden",idx!==1);
+  if(idx===0) carregarMeusStats();
+  else carregarHistorico();
+}
 async function carregarMeusStats(){
   $("stats-conteudo").innerHTML='<div class="aviso">Carregando...</div>';
   const r=await api("/api/perfil/stats");
   if(!r||!r.ok){$("stats-conteudo").innerHTML='<div class="aviso">Erro ao carregar.</div>';return;}
   renderStats(r.stats,r.username);
+}
+async function carregarHistorico(){
+  const el=$("stats-historico");
+  el.innerHTML='<div class="aviso">Carregando...</div>';
+  const r=await api("/api/perfil/historico");
+  if(!r||!r.ok){el.innerHTML='<div class="aviso">Erro ao carregar.</div>';return;}
+  const hist=r.historico;
+  if(!hist.length){el.innerHTML='<div class="aviso">Nenhuma partida registrada.</div>';return;}
+  const modos={individual:"Free-for-all",times:"Times",sobrevivencia:"Sobrevivência",caca:"Caça",restricao:"Restrição",duelo:"Duelo"};
+  el.innerHTML='<div class="card" style="padding:12px">'+hist.map(h=>{
+    const d=new Date(h.played_at);
+    const data=d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
+    const hora=d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    const wpm=h.words_per_second?(+h.words_per_second*60).toFixed(1):"—";
+    const dur=h.duration_seconds?Math.round(+h.duration_seconds)+"s":"—";
+    const ganhou=h.won?"✅":"❌";
+    return`<div class="hist-linha">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${ganhou} ${esc(modos[h.mode]||h.mode)}</div>
+        <div style="font-size:12px;color:var(--sub-txt)">${data} ${hora} · ${dur}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700;color:var(--accent)">${h.score} pts</div>
+        <div style="font-size:12px;color:var(--sub-txt)">${h.words_found} pal · ${wpm}/min</div>
+      </div>
+    </div>`;
+  }).join("")+'</div>';
 }
 function renderStats(s,username){
   if(!s||+s.total_games===0){
@@ -1627,19 +1717,27 @@ async function enviarPalavras(acao){
 // ---- init ----
 (async function iniciarAplicacao(){
   carregarCoresSalvas();
+  const salaViaURL=new URLSearchParams(location.search).get("sala");
   let salvo;
   try{salvo=JSON.parse(localStorage.getItem("bg_perfil")||"null");}catch(e){}
   if(salvo?.token&&salvo?.username){
     PERFIL_TOKEN=salvo.token;PERFIL_USER=salvo.username;
     if($("conta-user")) $("conta-user").textContent="Logado como: "+salvo.username;
-    if(salvo.sala_id){
-      const r=await api(`/api/sala/${salvo.sala_id}/entrar`,{});
+    const salaAlvo=salaViaURL||salvo.sala_id;
+    if(salaAlvo){
+      const r=await api(`/api/sala/${salaAlvo}/entrar`,{});
       if(r?.ok){
-        SALA_ID=salvo.sala_id;SALA_NOME=r.sala_nome;NOME=r.nome;
+        SALA_ID=salaAlvo;SALA_NOME=r.sala_nome;NOME=r.nome;
+        salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,salaAlvo);
+        history.replaceState({},"",location.pathname);
         iniciarPoll();
         return;
       }
       salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,null);
+    }
+    if(salaViaURL){
+      // sala não existe mais, mostrar home com código pré-preenchido
+      history.replaceState({},"",location.pathname);
     }
     irHome();
   }else{
@@ -1647,6 +1745,8 @@ async function enviarPalavras(acao){
     $("perfil-form").classList.remove("hidden");
     mostrarAbaPerfil("entrar");
     show("login");
+    // guarda sala para depois do login
+    if(salaViaURL) sessionStorage.setItem("sala_pendente",salaViaURL);
   }
 })();
 </script>
