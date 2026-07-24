@@ -38,18 +38,29 @@ def adicionar_palavra(p):
     return True
 
 
-def remover_palavra(p):
+def remover_palavra(p, reconstruir_trie=True):
     """Só remove palavras que foram adicionadas nesta sessão."""
     global _TRIE
     p = "".join(c for c in p.upper() if c.isalpha())
     if p in EXTRAS:
         EXTRAS.discard(p)
         WORDS.discard(p)
-        # reconstrói a trie pra o solver não continuar contando a palavra
-        # (custa ~35ms; remoção é rara, então compensa a simplicidade)
-        _TRIE = _solver.construir_trie(WORDS)
+        if reconstruir_trie:
+            _TRIE = _solver.construir_trie(WORDS)
         return True
     return False
+
+
+def remover_palavras_batch(lista):
+    """Remove uma lista de palavras reconstruindo a trie só uma vez."""
+    global _TRIE
+    removidas = []
+    for p in lista:
+        if remover_palavra(p, reconstruir_trie=False):
+            removidas.append(p)
+    if removidas:
+        _TRIE = _solver.construir_trie(WORDS)
+    return removidas
 
 POOL = ("AAAAAAAAAAAAAABBCCCCDDDDEEEEEEEEEEEEEEFFGGGHIIIIIIIIII"
         "JLLLLLMMMMNNNNNNOOOOOOOOOOOOPPPPQRRRRRRRRRSSSSSSSS"

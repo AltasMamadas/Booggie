@@ -772,10 +772,11 @@ def palavras_extras(sala_id):
     novas = [p for p in novas if 3 <= len(p) <= 16]
     aplicadas, ignoradas = [], []
     with LOCK:
-        for p in novas:
-            if acao == "remover":
-                (aplicadas if gc.remover_palavra(p) else ignoradas).append(p)
-            else:
+        if acao == "remover":
+            aplicadas = gc.remover_palavras_batch(novas)
+            ignoradas = [p for p in novas if p not in aplicadas]
+        else:
+            for p in novas:
                 (aplicadas if gc.adicionar_palavra(p) else ignoradas).append(p)
     return jsonify({"ok": True, "acao": acao, "aplicadas": aplicadas,
                     "ignoradas": ignoradas, "total_extras": len(gc.EXTRAS)})

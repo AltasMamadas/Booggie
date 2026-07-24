@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Boggle</title>
+<title>Lexico</title>
 <style>
   :root{
     --accent:#2ec4b6;--accent2:#1a9e92;--madeira:#2ec4b6;
@@ -105,7 +105,7 @@
   .cor-picker-linha:last-child{border-bottom:none;}
   .cor-picker-linha label{font-size:14px;color:var(--texto);}
   .cor-preset{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
-  .cor-preset-btn{width:28px;height:28px;border-radius:6px;border:2px solid transparent;cursor:pointer;padding:0;margin:0;width:auto;padding:4px 10px;font-size:12px;font-weight:600;}
+  .cor-preset-btn{width:auto;padding:7px 12px;font-size:12px;font-weight:600;border-radius:8px;margin-bottom:0;}
   @keyframes entraCelula{0%{opacity:0;transform:scale(.4) translateY(-14px);}60%{opacity:1;transform:scale(1.08) translateY(0);}100%{opacity:1;transform:scale(1);}}
   .cell.entrando{animation:entraCelula .42s cubic-bezier(.34,1.56,.64,1) backwards;}
   @keyframes surgeCelula{0%{opacity:0;transform:scale(.25) rotate(-12deg);background:#1a4a45;}45%{opacity:1;transform:scale(1.15) rotate(4deg);background:#1e5c55;}75%{transform:scale(.97) rotate(0deg);background:#1b3c38;}100%{opacity:1;transform:scale(1);background:var(--card-bg);}}
@@ -204,7 +204,7 @@
 <div id="alerta-tempo"></div>
 <div class="wrap">
   <div class="cabecalho">
-    <div class="logo" style="cursor:pointer">BOGGLE</div>
+    <div class="logo" style="cursor:pointer">LEXICO</div>
     <button class="btn-cfg" id="btn-cfg" onclick="abrirConfig()" title="Configurações">⚙️</button>
   </div>
 
@@ -1408,7 +1408,7 @@ const LB_CATS=[
   {key:"best_score",fmt:(v)=>`${v} pts`,sub:null},
   {key:"total_wins",fmt:(v,r)=>`${v} vitória${v!=1?"s":""}`,sub:r=>`${r.total_games} partida${r.total_games!=1?"s":""}`},
   {key:"longest_word_len",fmt:(v,r)=>r.longest_word?`${esc(r.longest_word)} · ${v} letras`:`${v} letras`,sub:null},
-  {key:"words_per_second",fmt:(v)=>`${(+v).toFixed(3)} pal/s`,sub:r=>`${r.total_words_found} palavras`},
+  {key:"words_per_second",fmt:(v)=>`${((+v)*60).toFixed(1)} pal/min`,sub:r=>`${r.total_words_found} palavras`},
   {key:"total_words_found",fmt:(v)=>`${v} palavras`,sub:r=>`${r.total_games} partida${r.total_games!=1?"s":""}`},
 ];
 async function abrirLeaderboard(){show("leaderboard");mudarAbaLb(lbAba);await carregarLeaderboard();}
@@ -1458,7 +1458,7 @@ function renderStats(s,username){
     return;
   }
   const taxa=+s.total_games>0?Math.round(+s.total_wins/+s.total_games*100):0;
-  const wps=+s.total_play_seconds>0?(+s.total_words_found/+s.total_play_seconds).toFixed(3):"0.000";
+  const wps=+s.total_play_seconds>0?((+s.total_words_found/+s.total_play_seconds)*60).toFixed(1):"0.0";
   const avgLen=+s.total_words_found>0?(+s.total_word_chars/+s.total_words_found).toFixed(1):"0.0";
   const seg=+s.total_play_seconds;
   const h=Math.floor(seg/3600),m=Math.floor((seg%3600)/60);
@@ -1483,7 +1483,7 @@ function renderStats(s,username){
       <div class="l">${s.longest_word_len} letras</div>
     </div>`:""}
     <div class="stat-grid">
-      <div class="stat-item"><div class="n">${wps}</div><div class="l">palavras/seg</div></div>
+      <div class="stat-item"><div class="n">${wps}</div><div class="l">palavras/min</div></div>
       <div class="stat-item"><div class="n">${avgLen}</div><div class="l">letras/pal</div></div>
     </div>`;
 }
