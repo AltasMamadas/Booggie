@@ -94,6 +94,14 @@ ACHIEVEMENTS = [
      lambda s: s["best_score"] >= 100),
     ("pts_250",   "Máquina de Pontos",  "Faça 250 pts numa partida",   "🚀", "Pontuação",
      lambda s: s["best_score"] >= 250),
+
+    # --- Streaks ---
+    ("stk_3",     "Constante",          "3 dias seguidos jogando",     "📅", "Streaks",
+     lambda s: s.get("best_streak", 0) >= 3),
+    ("stk_7",     "Semana Perfeita",    "7 dias seguidos jogando",     "🔥", "Streaks",
+     lambda s: s.get("best_streak", 0) >= 7),
+    ("stk_30",    "Dedicação Total",    "30 dias seguidos jogando",    "💎", "Streaks",
+     lambda s: s.get("best_streak", 0) >= 30),
 ]
 
 # índice por id para lookups

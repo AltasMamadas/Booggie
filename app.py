@@ -73,6 +73,8 @@ def estado_inicial():
         "bonus_duelo": {},         # duelo: {nome: pts_bonus}
         "eventos": [],             # notificações da sala (entrou/saiu)
         "evento_seq": 0,
+        "chat": [],                # mensagens do lobby chat
+        "chat_seq": 0,
     }
 
 
@@ -550,6 +552,62 @@ def perfil_achievements():
                     "desbloqueados": desbloqueados})
 
 
+@app.route("/api/amigos", methods=["GET"])
+def listar_amigos():
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    amigos = db.listar_amigos(pid)
+    # marcar quem está online (em alguma sala)
+    online_set = set()
+    with lock:
+        for sid, estado in salas.items():
+            for jn in estado.get("jogadores", {}):
+                online_set.add(jn)
+    for a in amigos:
+        a["online"] = a["username"] in online_set
+    return jsonify({"ok": True, "amigos": amigos})
+
+
+@app.route("/api/amigos/adicionar", methods=["POST"])
+def adicionar_amigo():
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    username = (data.get("username") or "").strip()[:16]
+    if not username:
+        return jsonify({"ok": False, "motivo": "username obrigatorio"}), 400
+    ok, err = db.enviar_pedido_amizade(pid, username)
+    if err:
+        return jsonify({"ok": False, "motivo": err}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/api/amigos/aceitar", methods=["POST"])
+def aceitar_amigo():
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    fid = (data.get("friendship_id") or "").strip()
+    if not fid:
+        return jsonify({"ok": False, "motivo": "friendship_id obrigatorio"}), 400
+    ok = db.aceitar_amizade(pid, fid)
+    if not ok:
+        return jsonify({"ok": False, "motivo": "pedido nao encontrado"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/amigos/remover", methods=["POST"])
+def remover_amigo():
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    username = (data.get("username") or "").strip()[:16]
+    if not username:
+        return jsonify({"ok": False, "motivo": "username obrigatorio"}), 400
+    db.remover_amizade(pid, username)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/perfil/historico")
 def perfil_historico():
     pid, _, erro = _exigir_login()
@@ -677,6 +735,28 @@ def sair(sala_id):
             estado["ranking"] = {}
             estado["host"] = None
             sala["vazia_desde"] = time.time()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/sala/<sala_id>/chat", methods=["POST"])
+def chat_sala(sala_id):
+    _, nome, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    texto = (data.get("texto") or "").strip()[:200]
+    if not texto:
+        return jsonify({"ok": False, "motivo": "mensagem vazia"}), 400
+    with LOCK:
+        sala, err = _sala_ou_erro(sala_id)
+        if err: return err
+        estado = sala["estado"]
+        if nome not in estado["jogadores"]:
+            return jsonify({"ok": False, "motivo": "nao esta na sala"}), 403
+        estado["chat_seq"] += 1
+        msg = {"id": estado["chat_seq"], "nome": nome, "texto": texto, "ts": time.time()}
+        estado["chat"].append(msg)
+        if len(estado["chat"]) > 50:
+            estado["chat"] = estado["chat"][-50:]
     return jsonify({"ok": True})
 
 
@@ -1018,6 +1098,10 @@ def get_estado(sala_id):
         if recentes:
             resp["eventos"] = [{"id": e["id"], "tipo": e["tipo"],
                                 "nome": e["nome"], "texto": e["texto"]} for e in recentes]
+
+        # chat do lobby
+        if estado["chat"]:
+            resp["chat"] = [{"id":m["id"],"nome":m["nome"],"texto":m["texto"]} for m in estado["chat"][-30:]]
 
         # conquistas recém-desbloqueadas deste jogador (entrega única)
         if pid_poll:

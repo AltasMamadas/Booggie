@@ -241,6 +241,21 @@ const Audio2 = (() => {
     } else if (tipo === "vitoria") {
       [60, 64, 67, 72, 76].forEach((n, i) =>
         nota(fBase(n), t + i * 0.1, 0.5, "triangle", 0.17, sfxGain));
+    } else if (tipo === "conquista") {
+      [72, 76, 79, 84].forEach((n, i) =>
+        nota(fBase(n), t + i * 0.12, 0.4, "sine", 0.20, sfxGain));
+      nota(fBase(84), t + 0.52, 0.6, "triangle", 0.14, sfxGain);
+    } else if (tipo === "entrou") {
+      nota(fBase(67), t, 0.12, "sine", 0.12, sfxGain);
+      nota(fBase(72), t + 0.08, 0.15, "sine", 0.12, sfxGain);
+    } else if (tipo === "saiu") {
+      nota(fBase(72), t, 0.12, "sine", 0.10, sfxGain);
+      nota(fBase(64), t + 0.08, 0.18, "sine", 0.10, sfxGain);
+    } else if (tipo === "chat") {
+      nota(fBase(76), t, 0.06, "sine", 0.10, sfxGain);
+    } else if (tipo === "aviso") {
+      nota(fBase(60), t, 0.10, "triangle", 0.14, sfxGain);
+      nota(fBase(60), t + 0.15, 0.10, "triangle", 0.14, sfxGain);
     }
   }
 

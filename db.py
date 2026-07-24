@@ -5,6 +5,7 @@ resto do projeto.
 """
 import os
 import json
+from datetime import date, timedelta
 from contextlib import contextmanager
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
@@ -224,6 +225,79 @@ def historico_partidas(profile_id, limit=20):
     return result
 
 
+def enviar_pedido_amizade(requester_id, addressee_username):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("select id from profiles where username = %s", (addressee_username,))
+            row = cur.fetchone()
+            if not row:
+                return None, "usuario nao encontrado"
+            addr_id = row["id"]
+            if str(addr_id) == str(requester_id):
+                return None, "voce nao pode se adicionar"
+            cur.execute(
+                """select id, status from friendships
+                   where (requester_id=%s and addressee_id=%s)
+                      or (requester_id=%s and addressee_id=%s)""",
+                (requester_id, addr_id, addr_id, requester_id),
+            )
+            existing = cur.fetchone()
+            if existing:
+                if existing["status"] == "accepted":
+                    return None, "ja sao amigos"
+                return None, "pedido ja enviado"
+            cur.execute(
+                "insert into friendships (requester_id, addressee_id) values (%s, %s)",
+                (requester_id, addr_id),
+            )
+        conn.commit()
+    return True, None
+
+
+def aceitar_amizade(profile_id, friendship_id):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "update friendships set status='accepted' where id=%s and addressee_id=%s and status='pending'",
+                (friendship_id, profile_id),
+            )
+            changed = cur.rowcount
+        conn.commit()
+    return changed > 0
+
+
+def remover_amizade(profile_id, friend_username):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("select id from profiles where username = %s", (friend_username,))
+            row = cur.fetchone()
+            if not row:
+                return False
+            fid = row["id"]
+            cur.execute(
+                """delete from friendships
+                   where (requester_id=%s and addressee_id=%s)
+                      or (requester_id=%s and addressee_id=%s)""",
+                (profile_id, fid, fid, profile_id),
+            )
+        conn.commit()
+    return True
+
+
+def listar_amigos(profile_id):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                select p.username, p.avatar, f.status, f.id as friendship_id,
+                       case when f.requester_id = %s then 'enviado' else 'recebido' end as direcao
+                from friendships f
+                join profiles p on p.id = case when f.requester_id = %s then f.addressee_id else f.requester_id end
+                where f.requester_id = %s or f.addressee_id = %s
+                order by f.status desc, p.username
+            """, (profile_id, profile_id, profile_id, profile_id))
+            return [dict(r) for r in cur.fetchall()]
+
+
 def persistir_partida(profile_id, dados):
     """
     dados: {mode, team, score, words_found, longest_word, avg_word_length,
@@ -267,6 +341,19 @@ def persistir_partida(profile_id, dados):
             for k, v in hist.items():
                 wlc[str(k)] = int(wlc.get(str(k), 0)) + int(v)
 
+            # streak
+            hoje = date.today()
+            last_play = s.get("last_play_date")
+            cur_streak = int(s.get("current_streak", 0))
+            best_stk = int(s.get("best_streak", 0))
+            if last_play is None or last_play < hoje - timedelta(days=1):
+                cur_streak = 1
+            elif last_play == hoje - timedelta(days=1):
+                cur_streak += 1
+            # same day: no change
+            if cur_streak > best_stk:
+                best_stk = cur_streak
+
             cur.execute(
                 """update profile_stats set
                      total_games = total_games + 1,
@@ -282,6 +369,9 @@ def persistir_partida(profile_id, dados):
                      mode_games = %(mode_games)s::jsonb,
                      mode_wins = %(mode_wins)s::jsonb,
                      word_len_counts = %(wlc)s::jsonb,
+                     current_streak = %(current_streak)s,
+                     best_streak = %(best_streak)s,
+                     last_play_date = %(last_play_date)s,
                      updated_at = now()
                    where profile_id = %(profile_id)s
                    returning *""",
@@ -298,6 +388,9 @@ def persistir_partida(profile_id, dados):
                     "mode_games": json.dumps(mode_games),
                     "mode_wins": json.dumps(mode_wins),
                     "wlc": json.dumps(wlc),
+                    "current_streak": cur_streak,
+                    "best_streak": best_stk,
+                    "last_play_date": hoje.isoformat(),
                 },
             )
             atualizado = cur.fetchone() or {}

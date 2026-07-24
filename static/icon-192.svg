@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="38" fill="#131c28"/>
+  <rect x="24" y="24" width="144" height="144" rx="28" fill="#1b2637" stroke="#2ec4b6" stroke-width="4"/>
+  <text x="96" y="112" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="56" fill="#2ec4b6" letter-spacing="3">L.IO</text>
+</svg>
