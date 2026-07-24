@@ -4,16 +4,29 @@ de partidas). Conexão direta via psycopg — sem ORM, condizente com o
 resto do projeto.
 """
 import os
-import psycopg
+from contextlib import contextmanager
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 
 _DB_URL = os.environ.get("SUPABASE_DB_URL")
 if not _DB_URL:
     raise RuntimeError("defina a env var SUPABASE_DB_URL")
 
+# Pool único reutilizado por todo o processo — evita o custo de TCP+TLS+auth
+# a cada query (caro no free tier do Supabase). Conexões abrem sob demanda.
+_pool = ConnectionPool(
+    _DB_URL,
+    min_size=1,
+    max_size=8,
+    kwargs={"row_factory": dict_row},
+    open=True,
+)
 
+
+@contextmanager
 def _conn():
-    return psycopg.connect(_DB_URL, row_factory=dict_row)
+    with _pool.connection() as conn:
+        yield conn
 
 
 def criar_perfil(username, pin_hash):

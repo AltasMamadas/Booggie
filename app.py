@@ -3,7 +3,9 @@ Servidor Boggle multiplayer v3.
 Multi-sala com nome e senha opcional. Série de vitórias (1/3/5/7).
 Modo cooperativo (caça com palavras partilhadas) e competitivo.
 """
-import time, random, threading, secrets
+import os, time, random, threading, secrets
+from dotenv import load_dotenv
+load_dotenv()  # carrega .env local antes de importar módulos que leem env vars
 from flask import Flask, request, jsonify, send_from_directory
 import game_core as gc
 import auth, db
@@ -20,6 +22,12 @@ SOBREV_FASES = [(0, 4, 4), (30, 4, 6), (60, 6, 6)]
 SOBREV_EMBARALHA_APOS = 90
 SOBREV_EMBARALHA_INTERVALO = 20
 SOBREV_AVISO = 5
+
+# tempo (s) sem sinal do jogador antes de removê-lo da sala
+TIMEOUT_LOBBY = 20
+TIMEOUT_JOGO = 40
+# grace period (s) que uma sala fica vazia antes de ser deletada
+GRACE_SALA_VAZIA = 60
 
 
 def estado_inicial():
@@ -208,8 +216,12 @@ def _vencedor_da_partida(estado):
 
 
 def _checar_fim(estado):
+    """Se a partida acabou, resolve o placar e muda de fase. Retorna a lista de
+    partidas a persistir no banco: [(perfil_id, dados)]. A persistência em si é
+    feita FORA do LOCK pelo chamador (é I/O de rede ao Supabase — não pode
+    segurar o lock global)."""
     if estado["fase"] != "jogando" or time.time() < estado["fim"]:
-        return
+        return []
     jogadores_palavras = {n: j["palavras"] for n, j in estado["jogadores"].items()}
     modo = estado["config"]["modo"]
     if modo == "times":
@@ -253,6 +265,7 @@ def _checar_fim(estado):
 
     venc = _vencedor_da_partida(estado)
     duracao = time.time() - estado["inicio"]
+    pendentes = []
     for nome, dados_placar in estado["placar"].items():
         j = estado["jogadores"].get(nome)
         if not j or not j.get("perfil_id"):
@@ -262,20 +275,17 @@ def _checar_fim(estado):
             ganhou = (j.get("time") or "Sem time") == venc
         else:
             ganhou = nome == venc
-        try:
-            db.persistir_partida(j["perfil_id"], {
-                "mode": modo,
-                "team": j.get("time") if modo == "times" else None,
-                "score": dados_placar["pontos"],
-                "words_found": len(palavras),
-                "longest_word": max(palavras, key=len) if palavras else None,
-                "avg_word_length": (sum(len(w) for w in palavras) / len(palavras)) if palavras else 0,
-                "words_per_second": (len(palavras) / duracao) if duracao > 0 else 0,
-                "won": ganhou,
-                "duration_seconds": duracao,
-            })
-        except Exception as e:
-            print(f"[perfil] falha ao persistir partida de {nome}: {e}")
+        pendentes.append((j["perfil_id"], {
+            "mode": modo,
+            "team": j.get("time") if modo == "times" else None,
+            "score": dados_placar["pontos"],
+            "words_found": len(palavras),
+            "longest_word": max(palavras, key=len) if palavras else None,
+            "avg_word_length": (sum(len(w) for w in palavras) / len(palavras)) if palavras else 0,
+            "words_per_second": (len(palavras) / duracao) if duracao > 0 else 0,
+            "won": ganhou,
+            "duration_seconds": duracao,
+        }))
 
     if venc is not None:
         estado["vitorias"][venc] = estado["vitorias"].get(venc, 0) + 1
@@ -292,18 +302,21 @@ def _checar_fim(estado):
     else:
         estado["fase"] = "resultado"
 
+    return pendentes
+
 
 def _limpar_ausentes(sala):
     estado = sala["estado"]
     agora = time.time()
     if estado["fase"] != "jogando":
-        fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > 30]
+        fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > TIMEOUT_LOBBY]
         for n in fora:
             del estado["jogadores"][n]
     elif (estado["jogadores"] and
-          all(agora - j["visto"] > 30 for j in estado["jogadores"].values())):
+          all(agora - j["visto"] > TIMEOUT_JOGO for j in estado["jogadores"].values())):
         _reset_para_lobby(estado, full=True)
         estado["host"] = None
+        sala["vazia_desde"] = agora
         return
     if estado["host"] not in estado["jogadores"]:
         _passar_host(estado)
@@ -311,6 +324,8 @@ def _limpar_ausentes(sala):
         _reset_para_lobby(estado, full=True)
         estado["host"] = None
         sala.setdefault("vazia_desde", agora)
+    elif estado["jogadores"]:
+        sala.pop("vazia_desde", None)
 
 
 def _limpar_salas_vazias():
@@ -318,7 +333,7 @@ def _limpar_salas_vazias():
     para_remover = [
         sid for sid, sala in salas.items()
         if not sala["estado"]["jogadores"]
-        and (agora - sala.get("vazia_desde", agora)) > 300
+        and (agora - sala.get("vazia_desde", agora)) > GRACE_SALA_VAZIA
     ]
     for sid in para_remover:
         del salas[sid]
@@ -397,6 +412,8 @@ def listar_salas():
     _, _, erro = _exigir_login()
     if erro: return erro
     with LOCK:
+        for sala in list(salas.values()):
+            _limpar_ausentes(sala)
         _limpar_salas_vazias()
         lista = [{
             "id": sala["id"],
@@ -709,7 +726,7 @@ def get_estado(sala_id):
             estado["jogadores"][nome]["visto"] = agora
         _aplicar_sobrevivencia(estado)
         _checar_eliminados(estado)
-        _checar_fim(estado)
+        pendentes_persistencia = _checar_fim(estado)
         _limpar_ausentes(sala)
 
         modo = estado["config"]["modo"]
@@ -810,7 +827,16 @@ def get_estado(sala_id):
                 resp["progresso"] = {"achadas": len(col2), "total": len(estado["grade_palavras"])}
             else:
                 resp["progresso"] = {"achadas": len(minhas), "total": len(estado["grade_palavras"])}
-        return jsonify(resp)
+        payload = jsonify(resp)  # serializa ainda sob o LOCK (estado consistente)
+
+    # persistência ao Supabase FORA do LOCK — I/O de rede não pode bloquear
+    # os polls das outras salas. Roda no máximo uma vez por partida.
+    for perfil_id, dados in pendentes_persistencia:
+        try:
+            db.persistir_partida(perfil_id, dados)
+        except Exception as e:
+            print(f"[perfil] falha ao persistir partida: {e}")
+    return payload
 
 
 @app.route("/api/sala/<sala_id>/palavras", methods=["GET", "POST"])
@@ -848,7 +874,26 @@ def zerar_ranking(sala_id):
     return jsonify({"ok": True})
 
 
+def _loop_limpeza():
+    """Limpeza proativa: remove jogadores ausentes e salas vazias mesmo quando
+    ninguém está pollando (senão salas abandonadas ficariam abertas p/ sempre)."""
+    while True:
+        time.sleep(30)
+        try:
+            with LOCK:
+                for sala in list(salas.values()):
+                    _limpar_ausentes(sala)
+                _limpar_salas_vazias()
+        except Exception as e:
+            print(f"[limpeza] erro: {e}")
+
+
+# Sob gunicorn (--workers>1) cada worker roda seu próprio loop, mas como o
+# estado é por-processo isso é o comportamento correto.
+threading.Thread(target=_loop_limpeza, daemon=True).start()
+
+
 if __name__ == "__main__":
-    import os
     porta = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=porta, debug=False)
+    dev = os.environ.get("FLASK_ENV") != "production"
+    app.run(host="0.0.0.0", port=porta, debug=dev)
