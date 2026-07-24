@@ -10,6 +10,9 @@ from flask import Flask, request, jsonify, send_from_directory
 import game_core as gc
 import auth, db
 import achievements as ach
+import rate_limit as rl
+import sanitize as san
+import logger as log
 
 # ids de avatares válidos (a arte vive no frontend; aqui só validamos o id)
 AVATARES_VALIDOS = {f"a{i}" for i in range(1, 13)}
@@ -384,31 +387,62 @@ def index():
     return send_from_directory("static", "index.html")
 
 
+@app.route("/api/health")
+def health():
+    return jsonify({
+        "ok": True,
+        "salas_ativas": len(salas),
+        "jogadores_online": sum(len(s["estado"]["jogadores"]) for s in salas.values()),
+        "metricas": log.get_counts(),
+    })
+
+
 @app.route("/api/perfil/criar", methods=["POST"])
 def perfil_criar():
+    ip = request.remote_addr or "?"
+    if not rl.checar(f"criar:{ip}", "criar_conta"):
+        log.warn("rate_limit", rota="criar", ip=ip)
+        return jsonify({"ok": False, "motivo": "muitas tentativas, aguarde"}), 429
     data = request.json or {}
-    username = (data.get("username") or "").strip()[:16]
-    pin = (data.get("pin") or "").strip()
-    if not username or not (pin.isdigit() and len(pin) == 4):
-        return jsonify({"ok": False, "motivo": "usuario ou pin invalido"}), 400
+    username, err = san.nome_usuario(data.get("username"))
+    if err:
+        return jsonify({"ok": False, "motivo": err}), 400
+    p, err = san.pin(data.get("pin"))
+    if err:
+        return jsonify({"ok": False, "motivo": err}), 400
     if db.buscar_perfil(username):
         return jsonify({"ok": False, "motivo": "usuario ja existe"}), 409
-    pid = db.criar_perfil(username, auth.hash_pin(pin))
+    pid = db.criar_perfil(username, auth.hash_pin(p))
     token = auth.gerar_token(pid, username)
+    log.info("perfil_criado", username=username)
+    log.count("perfis_criados")
     return jsonify({"ok": True, "token": token, "username": username, "avatar": "a1"})
 
 
 @app.route("/api/perfil/login", methods=["POST"])
 def perfil_login():
+    ip = request.remote_addr or "?"
     data = request.json or {}
     username = (data.get("username") or "").strip()[:16]
-    pin = (data.get("pin") or "").strip()
+    chave_rl = f"login:{ip}:{username}"
+    if not rl.checar(chave_rl, "login"):
+        log.warn("rate_limit", rota="login", ip=ip, user=username)
+        return jsonify({"ok": False, "motivo": "muitas tentativas, aguarde 1 minuto"}), 429
+    p, err = san.pin(data.get("pin"))
+    if err:
+        return jsonify({"ok": False, "motivo": err}), 400
     perfil = db.buscar_perfil(username)
-    if not perfil or not auth.checar_pin(pin, perfil["pin_hash"]):
+    if not perfil or not auth.checar_pin(p, perfil["pin_hash"]):
+        log.info("login_falhou", ip=ip, user=username)
+        log.count("login_falhas")
         return jsonify({"ok": False, "motivo": "usuario ou pin incorretos"}), 401
     token = auth.gerar_token(perfil["id"], username)
+    log.info("login_ok", user=username)
+    log.count("logins")
     return jsonify({"ok": True, "token": token, "username": username,
-                    "avatar": perfil.get("avatar", "a1")})
+                    "avatar": perfil.get("avatar", "a1"),
+                    "bio": perfil.get("bio", ""),
+                    "tem_pergunta": bool(perfil.get("security_question"))})
 
 
 @app.route("/api/perfil/stats")
@@ -436,6 +470,71 @@ def perfil_avatar():
     except Exception as e:
         return jsonify({"ok": False, "erro": str(e)}), 500
     return jsonify({"ok": True, "avatar": avatar})
+
+
+@app.route("/api/perfil/editar", methods=["POST"])
+def perfil_editar():
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    bio = data.get("bio")
+    if bio is not None:
+        bio = bio.strip()[:120]
+    try:
+        db.atualizar_perfil(pid, bio=bio)
+    except Exception as e:
+        return jsonify({"ok": False, "erro": str(e)}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/api/perfil/seguranca", methods=["POST"])
+def perfil_seguranca():
+    """Define a pergunta de segurança para recuperação de PIN."""
+    pid, _, erro = _exigir_login()
+    if erro: return erro
+    data = request.json or {}
+    pergunta = (data.get("pergunta") or "").strip()[:100]
+    resposta = (data.get("resposta") or "").strip().lower()
+    if not pergunta or len(resposta) < 2:
+        return jsonify({"ok": False, "motivo": "pergunta e resposta obrigatórias (resposta mín 2 chars)"}), 400
+    db.set_security_question(pid, pergunta, auth.hash_pin(resposta))
+    return jsonify({"ok": True})
+
+
+@app.route("/api/perfil/recuperar", methods=["POST"])
+def perfil_recuperar():
+    """Recupera o PIN usando a resposta de segurança."""
+    ip = request.remote_addr or "?"
+    if not rl.checar(f"recuperar:{ip}", "login"):
+        return jsonify({"ok": False, "motivo": "muitas tentativas, aguarde"}), 429
+    data = request.json or {}
+    username = (data.get("username") or "").strip()[:16]
+    resposta = (data.get("resposta") or "").strip().lower()
+    novo_pin, err = san.pin(data.get("novo_pin"))
+    if err:
+        return jsonify({"ok": False, "motivo": err}), 400
+    perfil = db.buscar_perfil(username)
+    if not perfil or not perfil.get("security_question"):
+        return jsonify({"ok": False, "motivo": "usuário não encontrado ou sem pergunta de segurança"}), 404
+    if not perfil.get("security_answer_hash") or not auth.checar_pin(resposta, perfil["security_answer_hash"]):
+        log.info("recuperacao_falhou", ip=ip, user=username)
+        return jsonify({"ok": False, "motivo": "resposta incorreta"}), 401
+    db.reset_pin(username, auth.hash_pin(novo_pin))
+    token = auth.gerar_token(perfil["id"], username)
+    log.info("pin_recuperado", user=username)
+    return jsonify({"ok": True, "token": token, "username": username,
+                    "avatar": perfil.get("avatar", "a1")})
+
+
+@app.route("/api/perfil/pergunta", methods=["POST"])
+def perfil_pergunta():
+    """Retorna a pergunta de segurança de um usuário (para a tela de recuperação)."""
+    data = request.json or {}
+    username = (data.get("username") or "").strip()[:16]
+    perfil = db.buscar_perfil(username)
+    if not perfil or not perfil.get("security_question"):
+        return jsonify({"ok": False, "motivo": "usuário não encontrado ou sem pergunta"}), 404
+    return jsonify({"ok": True, "pergunta": perfil["security_question"]})
 
 
 @app.route("/api/perfil/achievements")
@@ -466,7 +565,12 @@ def perfil_historico():
 def leaderboard():
     _, _, erro = _exigir_login()
     if erro: return erro
-    data = db.obter_leaderboard()
+    modo = (request.args.get("modo") or "").strip()
+    modos_validos = {"individual", "times", "sobrevivencia", "duelo", "restricao", "caca"}
+    if modo and modo in modos_validos:
+        data = db.obter_leaderboard_modo(modo)
+    else:
+        data = db.obter_leaderboard()
     resultado = [{k: float(v) if hasattr(v, '__float__') else v for k, v in row.items()}
                  for row in data]
     return jsonify({"ok": True, "data": resultado})
@@ -499,9 +603,9 @@ def criar_sala():
     pid, nome, erro = _exigir_login()
     if erro: return erro
     data = request.json or {}
-    nome_sala = (data.get("nome") or "").strip()[:32]
-    if not nome_sala:
-        return jsonify({"ok": False, "motivo": "nome da sala obrigatorio"}), 400
+    nome_sala, err = san.nome_sala(data.get("nome"))
+    if err:
+        return jsonify({"ok": False, "motivo": err}), 400
     senha = (data.get("senha") or "").strip()
     senha_hash = auth.hash_pin(senha) if senha else None
     avatar = _avatar_de(pid)
@@ -518,6 +622,8 @@ def criar_sala():
             "id": sid, "nome": nome_sala, "senha_hash": senha_hash,
             "estado": e, "criada_em": time.time(),
         }
+    log.info("sala_criada", sala=sid, nome=nome_sala, host=nome)
+    log.count("salas_criadas")
     return jsonify({"ok": True, "sala_id": sid, "sala_nome": nome_sala, "nome": nome})
 
 
@@ -696,7 +802,9 @@ def submeter(sala_id):
     data = request.json or {}
     _, nome, erro = _exigir_login()
     if erro: return erro
-    caminho = data.get("caminho", [])
+    caminho, err = san.caminho(data.get("caminho", []))
+    if err:
+        return jsonify({"ok": False, "motivo": err}), 400
     with LOCK:
         sala, err = _sala_ou_erro(sala_id)
         if err: return err
@@ -934,11 +1042,13 @@ def get_estado(sala_id):
     for perfil_id, dados in pendentes_persistencia:
         try:
             novos = db.persistir_partida(perfil_id, dados)
+            log.count("partidas_persistidas")
             if novos:
+                log.info("achievements_desbloqueados", perfil=str(perfil_id), novos=novos)
                 with NOTIF_LOCK:
                     NOTIF_ACH.setdefault(str(perfil_id), []).extend(novos)
         except Exception as e:
-            print(f"[perfil] falha ao persistir partida: {e}")
+            log.error("persistir_partida_falhou", perfil=str(perfil_id), erro=str(e))
     return payload
 
 

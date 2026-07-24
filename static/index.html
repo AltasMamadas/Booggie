@@ -148,6 +148,20 @@
   .toast.saindo{animation:toastSai .22s ease-in forwards;}
   @keyframes toastEntra{0%{opacity:0;transform:translateY(-14px) scale(.96);}100%{opacity:1;transform:none;}}
   @keyframes toastSai{0%{opacity:1;}100%{opacity:0;transform:translateY(-10px) scale(.97);}}
+  /* tema claro */
+  body.light{--accent:#1a9e92;--accent2:#158a80;--madeira:#1a9e92;
+    --creme:#f5f5f0;--borda:#d4d4cf;--fundo:#eaeae5;--texto:#1a2230;
+    --verde:#1a9e92;--vermelho:#d04458;
+    --card-bg:#ffffff;--sub-txt:#6b7a8c;--btn-sec-bg:#e8e8e2;--btn-sec-txt:#4a5568;
+    background:var(--fundo);color:var(--texto);}
+  body.light .cell{color:var(--texto);background:var(--card-bg);}
+  body.light .cell.on{color:#fff;}
+  body.light button{color:#fff;}
+  body.light button.sec{color:var(--btn-sec-txt);}
+  body.light .logo{text-shadow:none;}
+  /* leaderboard filtros */
+  .lb-filtros{display:flex;gap:6px;margin-bottom:8px;}
+  .lb-filtros select{width:auto;flex:1;padding:8px;font-size:12px;margin-bottom:0;}
   .cell.bloqueada{opacity:.28;pointer-events:none;filter:grayscale(1);}
   @keyframes dicaBrilho{0%,100%{box-shadow:0 3px 0 rgba(0,0,0,.4);border-color:var(--borda);}
     50%{box-shadow:0 0 14px 3px rgba(46,196,182,.55);border-color:var(--accent);}}
@@ -273,7 +287,24 @@
       <input id="perfil-user" placeholder="Usuário" maxlength="16" autocomplete="off">
       <input id="perfil-pin" placeholder="PIN de 4 dígitos" maxlength="4" inputmode="numeric" autocomplete="off">
       <button onclick="submeterPerfil()" id="btn-perfil-acao">Entrar</button>
+      <div style="text-align:center;margin:6px 0">
+        <a href="#" onclick="abrirRecuperacao();return false" style="font-size:12px;color:var(--accent)">Esqueci meu PIN</a>
+      </div>
       <div class="aviso left" id="perfil-msg"></div>
+    </div>
+    <!-- RECUPERAÇÃO DE PIN -->
+    <div class="card hidden" id="recuperar-form">
+      <h3>Recuperar PIN</h3>
+      <input id="rec-user" placeholder="Usuário" maxlength="16" autocomplete="off">
+      <button class="sec mini" onclick="buscarPergunta()">Buscar pergunta</button>
+      <div id="rec-pergunta-box" class="hidden" style="margin-top:10px">
+        <div class="aviso left" id="rec-pergunta-txt" style="margin-bottom:8px"></div>
+        <input id="rec-resposta" placeholder="Sua resposta" autocomplete="off">
+        <input id="rec-novo-pin" placeholder="Novo PIN de 4 dígitos" maxlength="4" inputmode="numeric" autocomplete="off">
+        <button onclick="recuperarPin()">Redefinir PIN</button>
+      </div>
+      <div class="aviso left" id="rec-msg"></div>
+      <button class="sec mini" onclick="fecharRecuperacao()" style="margin-top:6px">Voltar ao login</button>
     </div>
   </div>
 
@@ -543,6 +574,17 @@
         <button id="lb-tab-3" class="lb-tab sec" onclick="mudarAbaLb(3)">⚡ Velocidade</button>
         <button id="lb-tab-4" class="lb-tab sec" onclick="mudarAbaLb(4)">📚 Total</button>
       </div>
+      <div class="lb-filtros">
+        <select id="lb-filtro-modo" onchange="carregarLeaderboard()">
+          <option value="">Todos os modos</option>
+          <option value="individual">Individual</option>
+          <option value="times">Times</option>
+          <option value="sobrevivencia">Sobrevivência</option>
+          <option value="duelo">Duelo</option>
+          <option value="restricao">Restrição</option>
+          <option value="caca">Caça</option>
+        </select>
+      </div>
       <div id="lb-lista"><div class="aviso">Carregando...</div></div>
     </div>
     <button class="sec" onclick="fecharLeaderboard()">Voltar</button>
@@ -565,6 +607,27 @@
     <div class="card">
       <h3>Avatar</h3>
       <div id="avatar-grid" class="avatar-grid"></div>
+    </div>
+    <div class="card">
+      <h3>Bio</h3>
+      <input id="cfg-bio" placeholder="Uma frase sobre você (máx 120)" maxlength="120" autocomplete="off">
+      <button class="sec mini" onclick="salvarBio()">Salvar bio</button>
+      <div class="aviso left" id="bio-msg" style="margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <h3>Segurança — Recuperação de PIN</h3>
+      <div class="aviso left" id="seg-status" style="margin-top:0;margin-bottom:8px"></div>
+      <input id="seg-pergunta" placeholder="Pergunta de segurança (ex: nome do pet)" maxlength="100" autocomplete="off">
+      <input id="seg-resposta" placeholder="Resposta" maxlength="50" autocomplete="off">
+      <button class="sec mini" onclick="salvarSeguranca()">Definir pergunta</button>
+      <div class="aviso left" id="seg-msg" style="margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <h3>Tema</h3>
+      <div class="row2">
+        <button class="sec mini" id="btn-tema-dark" onclick="setTema('dark')">🌙 Escuro</button>
+        <button class="sec mini" id="btn-tema-light" onclick="setTema('light')">☀️ Claro</button>
+      </div>
     </div>
     <div class="card">
       <h3>Som</h3>
@@ -759,6 +822,7 @@ async function submeterPerfil(){
   const url=abaPerfil==="entrar"?"/api/perfil/login":"/api/perfil/criar";
   const r=await api(url,{username,pin});
   if(r&&r.ok){
+    PERFIL_BIO=r.bio||"";
     salvarPerfilLocal(r.token,r.username,null,r.avatar);
     $("perfil-msg").textContent="";
     const salaPend=sessionStorage.getItem("sala_pendente");
@@ -785,6 +849,72 @@ function logoutPerfil(){
   mostrarAbaPerfil("entrar");
   show("login");
 }
+
+// ---- recuperação de PIN ----
+function abrirRecuperacao(){
+  $("perfil-form").classList.add("hidden");
+  $("recuperar-form").classList.remove("hidden");
+  $("rec-msg").textContent="";
+  $("rec-pergunta-box").classList.add("hidden");
+  $("rec-user").value=$("perfil-user").value||"";
+}
+function fecharRecuperacao(){
+  $("recuperar-form").classList.add("hidden");
+  $("perfil-form").classList.remove("hidden");
+}
+async function buscarPergunta(){
+  const u=$("rec-user").value.trim();
+  if(!u){$("rec-msg").textContent="Digite o usuário.";return;}
+  const r=await api("/api/perfil/pergunta",{username:u});
+  if(r&&r.ok){
+    $("rec-pergunta-txt").textContent=r.pergunta;
+    $("rec-pergunta-box").classList.remove("hidden");
+    $("rec-msg").textContent="";
+  }else{
+    $("rec-msg").textContent=(r&&r.motivo)||"Usuário sem pergunta de segurança.";
+    $("rec-pergunta-box").classList.add("hidden");
+  }
+}
+async function recuperarPin(){
+  const u=$("rec-user").value.trim();
+  const resp=$("rec-resposta").value.trim();
+  const pin=$("rec-novo-pin").value.trim();
+  if(!resp||!pin){$("rec-msg").textContent="Preencha resposta e novo PIN.";return;}
+  const r=await api("/api/perfil/recuperar",{username:u,resposta:resp,novo_pin:pin});
+  if(r&&r.ok){
+    salvarPerfilLocal(r.token,r.username,null,r.avatar);
+    fecharRecuperacao();
+    irHome();
+  }else{
+    $("rec-msg").textContent=(r&&r.motivo)||"Falha ao recuperar.";
+  }
+}
+
+// ---- bio e segurança ----
+let PERFIL_BIO="";
+async function salvarBio(){
+  const bio=$("cfg-bio").value.trim();
+  const r=await api("/api/perfil/editar",{bio});
+  if(r&&r.ok){$("bio-msg").textContent="Salvo!";PERFIL_BIO=bio;setTimeout(()=>$("bio-msg").textContent="",2000);}
+  else $("bio-msg").textContent=(r&&r.motivo)||"Erro.";
+}
+async function salvarSeguranca(){
+  const p=$("seg-pergunta").value.trim(), resp=$("seg-resposta").value.trim();
+  if(!p||resp.length<2){$("seg-msg").textContent="Preencha pergunta e resposta (mín 2 chars).";return;}
+  const r=await api("/api/perfil/seguranca",{pergunta:p,resposta:resp});
+  if(r&&r.ok){$("seg-msg").textContent="Definida!";$("seg-status").textContent="✅ Pergunta configurada.";
+    $("seg-pergunta").value="";$("seg-resposta").value="";setTimeout(()=>$("seg-msg").textContent="",2000);}
+  else $("seg-msg").textContent=(r&&r.motivo)||"Erro.";
+}
+
+// ---- tema dark/light ----
+function setTema(t){
+  document.body.classList.toggle("light",t==="light");
+  try{localStorage.setItem("bg_tema",t);}catch(e){}
+  if($("btn-tema-dark"))$("btn-tema-dark").classList.toggle("sec",t!=="dark");
+  if($("btn-tema-light"))$("btn-tema-light").classList.toggle("sec",t!=="light");
+}
+(function(){try{const t=localStorage.getItem("bg_tema");if(t)setTema(t);}catch(e){}})();
 
 // ---- home ----
 function irHome(){
@@ -1639,7 +1769,9 @@ async function abrirLeaderboard(){show("leaderboard");mudarAbaLb(lbAba);await ca
 function fecharLeaderboard(){show(SALA_ID?"lobby":"home");}
 async function carregarLeaderboard(){
   $("lb-lista").innerHTML='<div class="aviso">Carregando...</div>';
-  const r=await api("/api/leaderboard");
+  const modo=$("lb-filtro-modo")?$("lb-filtro-modo").value:"";
+  const url=modo?`/api/leaderboard?modo=${modo}`:"/api/leaderboard";
+  const r=await api(url);
   if(!r||!r.ok){$("lb-lista").innerHTML='<div class="aviso">Não foi possível carregar.</div>';return;}
   lbDados=r.data;renderizarLb();
 }
@@ -1800,7 +1932,20 @@ function renderStats(s,username){
     <div class="stat-grid">
       <div class="stat-item"><div class="n">${wps}</div><div class="l">palavras/min</div></div>
       <div class="stat-item"><div class="n">${avgLen}</div><div class="l">letras/pal</div></div>
-    </div>`;
+    </div>
+    ${_renderModosStats(s)}`;
+}
+function _renderModosStats(s){
+  const mg=s.mode_games||{}, mw=s.mode_wins||{};
+  const nomes={individual:"Free-for-all",times:"Times",sobrevivencia:"Sobrevivência",duelo:"Duelo",restricao:"Restrição",caca:"Caça"};
+  const modos=Object.keys(nomes).filter(m=>+mg[m]>0);
+  if(!modos.length) return "";
+  return `<div class="card" style="padding:12px;margin-top:10px"><h3 style="margin-top:0">Por modo</h3>
+    <div class="stat-grid">${modos.map(m=>{
+      const g=+mg[m]||0, w=+mw[m]||0;
+      return `<div class="stat-item"><div class="n">${g}</div><div class="l">${esc(nomes[m])}</div>
+        <div style="font-size:11px;color:var(--accent);margin-top:2px">${w} vitória${w!==1?"s":""}</div></div>`;
+    }).join("")}</div></div>`;
 }
 
 // ---- configurações ----
@@ -1812,6 +1957,13 @@ function abrirConfig(){
                  (SALA_ID?"lobby":"home");
     show("config");
     renderAvatarGrid();
+    if($("cfg-bio")) $("cfg-bio").value=PERFIL_BIO||"";
+    // status da pergunta de segurança
+    (async()=>{
+      const r=await api("/api/perfil/pergunta",{username:PERFIL_USER});
+      const el=$("seg-status");
+      if(el) el.textContent=r&&r.ok?"✅ Pergunta configurada.":"⚠️ Sem pergunta — configure para poder recuperar o PIN.";
+    })();
   }
 }
 function fecharConfig(){show(telaAnterior);}

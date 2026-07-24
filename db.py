@@ -50,7 +50,7 @@ def buscar_perfil(username):
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "select id, username, pin_hash, avatar from profiles where username = %s",
+                "select id, username, pin_hash, avatar, bio, security_question, security_answer_hash from profiles where username = %s",
                 (username,),
             )
             return cur.fetchone()
@@ -62,6 +62,53 @@ def obter_avatar(profile_id):
             cur.execute("select avatar from profiles where id = %s", (profile_id,))
             r = cur.fetchone()
             return r["avatar"] if r else "a1"
+
+
+def obter_perfil_publico(profile_id):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select username, avatar, bio from profiles where id = %s",
+                (profile_id,),
+            )
+            return cur.fetchone()
+
+
+def atualizar_perfil(profile_id, bio=None):
+    campos, vals = [], []
+    if bio is not None:
+        campos.append("bio = %s")
+        vals.append(bio[:120])
+    if not campos:
+        return
+    vals.append(profile_id)
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"update profiles set {', '.join(campos)} where id = %s",
+                vals,
+            )
+        conn.commit()
+
+
+def set_security_question(profile_id, question, answer_hash):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "update profiles set security_question = %s, security_answer_hash = %s where id = %s",
+                (question, answer_hash, profile_id),
+            )
+        conn.commit()
+
+
+def reset_pin(username, novo_pin_hash):
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "update profiles set pin_hash = %s where username = %s",
+                (novo_pin_hash, username),
+            )
+        conn.commit()
 
 
 def set_avatar(profile_id, avatar):
@@ -122,6 +169,35 @@ def obter_leaderboard():
                 order by s.best_score desc
                 limit 100
             """)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def obter_leaderboard_modo(modo):
+    """Leaderboard filtrado por modo, agregado em tempo real do match_history."""
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                select p.username,
+                       p.avatar,
+                       max(m.score) as best_score,
+                       sum(case when m.won then 1 else 0 end)::int as total_wins,
+                       count(*)::int as total_games,
+                       max(m.longest_word) as longest_word,
+                       max(length(coalesce(m.longest_word,'')))::int as longest_word_len,
+                       sum(m.words_found)::bigint as total_words_found,
+                       sum(m.duration_seconds) as total_play_seconds,
+                       case when sum(m.duration_seconds) > 0
+                            then round(sum(m.words_found)::numeric / sum(m.duration_seconds), 3)
+                            else 0 end as words_per_second,
+                       0 as total_word_chars,
+                       0 as avg_word_length
+                from match_history m
+                join profiles p on p.id = m.profile_id
+                where m.mode = %s
+                group by p.username, p.avatar
+                order by max(m.score) desc
+                limit 100
+            """, (modo,))
             return [dict(r) for r in cur.fetchall()]
 
 
