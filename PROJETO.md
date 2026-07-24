@@ -1,8 +1,8 @@
-# Boggle Multiplayer — Contexto do Projeto
+# Lexico — Contexto do Projeto (atualizado jul/2026)
 
 ## O que é
 
-Jogo de Boggle multiplayer rodando em Flask + Vanilla JS (single HTML file). Jogadores se conectam via polling (1,5s). Hospedado no Render (free tier). Banco de dados Supabase Postgres.
+**Lexico** é um jogo de palavras multiplayer (estilo Boggle) rodando em Flask + Vanilla JS (single HTML file). Jogadores se conectam via polling a cada 1,5s. Hospedado no Render (free tier). Banco de dados Supabase Postgres.
 
 ---
 
@@ -10,12 +10,6 @@ Jogo de Boggle multiplayer rodando em Flask + Vanilla JS (single HTML file). Jog
 
 ```
 https://github.com/AltasMamadas/Booggie
-```
-
-Clone e entre na pasta:
-```bash
-git clone https://github.com/AltasMamadas/Booggie.git
-cd Booggie
 ```
 
 ---
@@ -26,41 +20,30 @@ cd Booggie
 app.py          — servidor Flask (todas as rotas)
 auth.py         — tokens JWT-like (itsdangerous) + bcrypt para PIN/senha
 db.py           — acesso ao Postgres via psycopg (perfis, stats, leaderboard)
-game_core.py    — lógica do jogo (grade, validação de palavra, placar)
-solver.py       — encontra todas as palavras válidas de uma grade
+game_core.py    — lógica do jogo (grade, validação, placar, trie de palavras)
+solver.py       — encontra todas as palavras válidas de uma grade (busca na trie)
 requirements.txt
 static/
   index.html    — frontend completo (CSS + HTML + JS num único arquivo)
   audio.js      — sistema de áudio (trilhas, SFX)
   *.mp3 / *.ogg
+supabase/
+  migrations/
+    0001_perfis.sql  — schema aplicado no Supabase
 ```
 
 ---
 
-## Variáveis de ambiente obrigatórias
+## Variáveis de ambiente
 
-Crie um arquivo `.env` na raiz (já no `.gitignore`):
+Crie `.env` na raiz (já no `.gitignore`):
 
 ```env
-SECRET_KEY=<sua_secret_key_aqui>
-SUPABASE_DB_URL=<sua_connection_string_do_supabase>
+SECRET_KEY=<sua_secret_key>
+SUPABASE_DB_URL=<connection_string_do_supabase>
 ```
 
-> As credenciais reais estão no painel do Render (em Environment) e no painel do Supabase (Settings → Database → Connection string). **Não commite o `.env` real** — ele está no `.gitignore`.
-
-O app **não usa python-dotenv** — você precisa exportar as vars antes de rodar:
-
-```bash
-# Linux/Mac
-export SECRET_KEY=d13f1337...
-export SUPABASE_DB_URL=postgresql://...
-python app.py
-
-# Windows PowerShell
-$env:SECRET_KEY = "d13f1337..."
-$env:SUPABASE_DB_URL = "postgresql://..."
-python app.py
-```
+As credenciais reais ficam no painel do Render (Environment) e no Supabase (Settings → Database). O app usa `python-dotenv` — basta ter o `.env` e rodar `python app.py`.
 
 ---
 
@@ -68,67 +51,61 @@ python app.py
 
 ```bash
 pip install -r requirements.txt
-# setar env vars conforme acima
 python app.py
 # abre http://127.0.0.1:5000
 ```
 
----
-
-## Banco de dados (Supabase)
-
-- **Projeto:** veja o ID no painel do Supabase (região us-east-1)
-- **Tabelas:**
-  - `profiles` — id (uuid), username (unique), pin_hash, created_at
-  - `profile_stats` — totais agregados por jogador (best_score, total_wins, longest_word, words_per_second, etc.)
-  - `match_history` — histórico de partidas individuais
-- A migration está em `supabase/migrations/0001_perfis.sql` (já aplicada)
-- **Não precisa recriar o banco** — já existe e tem dados
+Flask roda em modo debug localmente (auto-reload ao salvar arquivos).
 
 ---
 
-## Deploy (Render)
+## Banco de dados (Supabase Postgres)
 
-- Serviço: Web Service, Python
-- Start command: `gunicorn app:app`
-- Env vars configuradas no painel do Render (as mesmas do `.env`)
-- Free tier hiberna após 15 min de inatividade — primeira requisição demora ~30s
+Tabelas:
+- `profiles` — id (uuid PK), username (unique), pin_hash, created_at
+- `profile_stats` — totais agregados: best_score, total_wins, longest_word, total_words_found, total_word_chars, total_play_seconds, total_games, updated_at
+- `match_history` — histórico de partidas: profile_id, mode, team, score, words_found, longest_word, avg_word_length, words_per_second, won, duration_seconds, played_at
+
+---
+
+## Deploy
+
+- **Render** — Web Service Python, `gunicorn app:app`, free tier (hiberna após 15 min de inatividade, ~30s na primeira requisição)
+- Push em `main` → deploy automático
 
 ---
 
 ## Arquitetura do backend
 
 ### Autenticação
-- `POST /api/perfil/criar` — cria conta com username + PIN de 4 dígitos
-- `POST /api/perfil/login` — valida PIN com bcrypt, retorna token assinado
-- Token: payload `{"pid": uuid, "u": username}` assinado com `itsdangerous.URLSafeSerializer`
-- Enviado em todo request como `Authorization: Bearer <token>`
-- Sem expiração (por enquanto)
+- `POST /api/perfil/criar` — cria conta com username + PIN de 4 dígitos (bcrypt)
+- `POST /api/perfil/login` — valida PIN, retorna token assinado com `itsdangerous`
+- Token: `{"pid": uuid, "u": username}`, enviado como `Authorization: Bearer <token>` em todo request
+- Sem expiração de token (por enquanto)
 
-### Multi-sala
-- `salas = {}` — dict global com todas as salas ativas
+### Estado de salas
+- `salas = {}` — dict global em memória (não persiste entre restarts)
 - `sala_id` — 6 chars hex maiúsculo (ex.: `986EC2`)
-- Cada sala: `{"id", "nome", "senha_hash", "estado", "criada_em", "vazia_desde"}`
-- Salas vazias por >5 min são removidas automaticamente
-- **Toda a lógica de jogo está em `estado`** — cada sala tem seu próprio `estado`
+- Cada sala: `{id, nome, senha_hash, estado, criada_em, vazia_desde}`
+- **Thread de limpeza** roda a cada 30s: remove jogadores inativos (20s no lobby, 40s em jogo) e salas vazias há >60s
+- Toda a lógica de jogo está em `estado` — cada sala tem o seu
 
 ### Rotas principais
-```
-GET  /api/salas                    — lista salas disponíveis
-POST /api/sala/criar               — cria sala {nome, senha?}
-POST /api/sala/<id>/entrar         — entra na sala {senha?}
 
-GET  /api/sala/<id>/estado         — poll (1,5s) — retorna tudo que o frontend precisa
-POST /api/sala/<id>/config         — host muda configurações
+```
+GET  /api/salas                    — lista salas (roda limpeza antes)
+POST /api/sala/criar               — cria sala {nome, senha?}
+POST /api/sala/<id>/entrar         — entra na sala
+GET  /api/sala/<id>/estado         — poll 1,5s — tudo que o frontend precisa
+POST /api/sala/<id>/config         — host muda config
 POST /api/sala/<id>/iniciar        — host inicia partida
 POST /api/sala/<id>/sair           — remove jogador
-POST /api/sala/<id>/nova           — host volta ao lobby (encerra partida)
-POST /api/sala/<id>/submeter       — submete caminho de letras
-POST /api/sala/<id>/dica           — pede dica (prefixo da menor palavra não achada)
-POST /api/sala/<id>/time           — define nome do time
-POST /api/sala/<id>/palavras       — add/remove palavras customizadas
+POST /api/sala/<id>/nova           — host volta ao lobby
+POST /api/sala/<id>/submeter       — submete palavra (caminho de células)
+POST /api/sala/<id>/dica           — prefixo da menor palavra não achada
+POST /api/sala/<id>/time           — define nome + cor do time (cores 1-6)
+POST /api/sala/<id>/palavras       — add/remove palavras extras (GET lista todas)
 POST /api/sala/<id>/zerar_ranking  — zera ranking de sessão
-
 GET  /api/leaderboard              — ranking global do Supabase
 GET  /api/perfil/stats             — stats do jogador autenticado
 ```
@@ -138,73 +115,102 @@ GET  /api/perfil/stats             — stats do jogador autenticado
 ## Arquitetura do frontend (`static/index.html`)
 
 Telas (controladas por `show(nome)`):
-- `login` — criar conta / entrar
-- `home` — "Olá, [user]!" + 4 botões
+- `login` — criar conta / entrar com PIN
+- `home` — saudação + botões principais
 - `criar-sala` — nome + senha opcional
-- `entrar-sala` — lista de salas com scroll
-- `lobby` — configurações + lista de jogadores
-- `jogo` — tabuleiro interativo
-- `resultado` — resultado de cada partida
-- `fim` — fim de série (tela-fim)
-- `config` — configurações de áudio, palavras, conta
-- `stats` — estatísticas pessoais
-- `leaderboard` — ranking global
+- `entrar-sala` — lista de salas abertas
+- `lobby` — config da partida + jogadores + palavras extras
+- `jogo` — tabuleiro interativo (arrastar para conectar letras)
+- `resultado` — resultado de cada rodada
+- `fim` — fim de série
+- `config` — áudio, sensibilidade, conta, tema de cores
+- `stats` — estatísticas pessoais (5 categorias)
+- `leaderboard` — ranking global (5 categorias)
 
 Variáveis globais importantes:
 ```javascript
-SALA_ID     // ID da sala atual ("986EC2" ou null)
-SALA_NOME   // nome da sala
-NOME        // username do jogador logado
-PERFIL_TOKEN // token de auth
-catSel      // "cooperativo" | "competitivo"
-serieSel    // 1 | 3 | 5 | 7
+SALA_ID, SALA_NOME, NOME, PERFIL_TOKEN
+catSel    // "cooperativo" | "competitivo"
+serieSel  // 1 | 3 | 5 | 7
+corTimeSel // 1-6 (cor do time)
 ```
 
-Helper de API:
-```javascript
-api(url, body)         // fetch genérico com Authorization header
-apiSala(path, body)    // atalho: api(`/api/sala/${SALA_ID}${path}`, body)
-```
-
-Auto-rejoin: ao carregar, tenta `localStorage.bg_perfil` (`{token, username, sala_id}`) e entra direto na sala anterior se existir.
+Auto-rejoin: ao carregar, verifica `localStorage.bg_perfil` e tenta reentrar na sala anterior automaticamente.
 
 ---
 
 ## Modos de jogo
 
-### Modo categoria
+### Categorias
 - **Competitivo** — jogadores competem entre si
-- **Cooperativo** — todos encontram palavras juntos (Caça completa); `palavras_coletivas` é a união das palavras de todos; visível para o grupo inteiro
+- **Cooperativo** — todos encontram palavras juntos; `palavras_coletivas` é compartilhada; dica e progresso são coletivos
 
 ### Modos competitivos
-- **Free-for-all** (`individual`) — palavra exclusiva vale dobro
-- **Times** (`times`) — mesmo nome de time soma pontos
-- **Sobrevivência** (`sobrevivencia`) — começa com 1:30, cada palavra devolve tempo, tabuleiro cresce depois embaralha
+- **Free-for-all** (`individual`) — palavra exclusiva (só um jogador achou) vale dobro
+- **Times** (`times`) — jogadores com mesmo nome de time somam pontos; cores de 1-6 (vermelho, azul, verde, amarelo, roxo, laranja)
+- **Sobrevivência** (`sobrevivencia`) — começa com 1:30, cada palavra devolve tempo, tabuleiro cresce e embaralha
+- **Caça** (`caca`) — sem relógio, achar todas as palavras do tabuleiro; dica disponível
 
 ### Série
-- 1 (partida única), 3, 5, 7
-- Encerra quando alguém atinge N vitórias (não quando joga N partidas)
+- Seletor: 1 (partida única), 3, 5, 7
+- Encerra quando alguém atinge N vitórias (não quando joga N rodadas)
 
 ---
 
-## O que foi feito nas últimas sessões
+## Funcionalidades implementadas
 
-1. **Sistema de perfis** — Supabase + bcrypt + tokens stateless
-2. **Leaderboard e stats** — 5 categorias (pontuação, vitórias, palavra, velocidade, total)
-3. **Multi-sala** — `salas{}` substituiu `estado` global; rotas com `/api/sala/<id>/...`
-4. **Homepage** — tela inicial com saudação, criar/entrar em sala
-5. **Modo cooperativo** — `palavras_coletivas`, dica e progresso coletivos
-6. **Série até N vitórias** — seletor 1/3/5/7
+- **Perfis persistentes** — username + PIN, dados salvos no Supabase
+- **Leaderboard global** — 5 categorias: pontuação, vitórias, palavra mais longa, palavras/min, total de palavras
+- **Estatísticas pessoais** — mesmas 5 categorias + histórico de melhores
+- **Multi-sala** — várias salas simultâneas independentes
+- **Limpeza automática de salas** — thread de background + cleanup no listing
+- **Pacotes de palavras** — NSFW, Geografia, Gen Alpha, Marcas (clique para ativar/desativar; adicionados via endpoint `/palavras`)
+- **Palavras extras manuais** — adicionar/remover palavras por sala e sessão
+- **Cores de time** — 6 cores predefinidas, badge colorido na lista de jogadores
+- **Série até N vitórias** — 1/3/5/7
+- **Tempo em segundos** — 30s a 600s (não mais em minutos)
+- **Logo clicável** — volta ao home com confirmação
+- **Tema escuro** — padrão dark navy + teal; personalizável
+- **Customização de cores** — fundo, cards, bordas, accent, texto; 4 presets (Escuro, Roxo, Floresta, Clássico); salvo em localStorage
+- **Auto-rejoin** — ao recarregar, volta para a sala automaticamente
+- **Host badge** + **auto-reassignment** — host passa para próximo jogador se sair
+- **Áudio** — trilhas de fundo, SFX, volume separado; suporte a música própria (upload local)
+- **Sensibilidade do toque** — controle de precisão para selecionar letras diagonais
 
 ---
 
-## O que ainda pode ser feito (ideias)
+## O que NÃO foi feito ainda (ideias para próximos passos)
 
-- Rate limiting no login (contra força bruta de PIN)
-- Sala persistente (não some ao ficar vazia) — útil para grupos fixos
-- Chat na sala / emojis de reação
-- Histórico de partidas no perfil (`match_history` já existe no banco)
-- Animação de confete no fim de série
-- Compartilhar código da sala via link
-- Modo espectador
-- Palavras customizadas persistentes por perfil (hoje só duram a sessão)
+### Produto / UX
+- Foto de perfil (Supabase Storage + coluna `profile_picture_url` em profiles)
+- Chat na sala / emojis de reação durante o jogo
+- Modo espectador (entrar numa sala sem jogar)
+- Compartilhar código da sala via link direto (URL com `?sala=ABCD12`)
+- Animação de confete/celebração no fim de série
+- Histórico de partidas visível no perfil (`match_history` já existe no banco, mas sem tela)
+- Sala persistente (não desaparece ao ficar vazia) — útil para grupos fixos
+- Tutorial / onboarding para novos jogadores
+
+### Técnico
+- Rate limiting no login (contra força bruta de PIN de 4 dígitos)
+- Palavras extras persistentes por perfil (hoje somem ao reiniciar o servidor)
+- Migrar de polling para WebSockets (latência menor, menos carga no servidor)
+- Recuperação de senha / troca de PIN
+- Expiração / renovação de token
+- Modo offline / PWA (jogar sozinho contra o relógio sem servidor)
+- Internacionalização (inglês / outro idioma)
+
+### Conteúdo
+- Mais pacotes de palavras (temas: esportes, culinária, música...)
+- Palavras customizadas persistentes por sala (hoje são globais, afetam todas as salas)
+- Dicionário ajustável por região (BR vs PT)
+
+---
+
+## Decisões técnicas relevantes
+
+- **Polling em vez de WebSocket** — simplicidade de deploy no Render free tier (sem suporte nativo a sockets persistentes sem worker dedicado)
+- **Estado em memória** — zero latência de DB durante o jogo; trade-off: perde tudo se o servidor reiniciar
+- **Token stateless** — evita query ao DB a cada poll (HMAC local); sem revogar tokens individualmente
+- **Trie para validação** — `solver.py` constrói uma trie em memória; reconstrução custa ~35ms (feita em batch ao remover pacotes)
+- **Single HTML file** — sem build tool, sem framework; tudo inline
