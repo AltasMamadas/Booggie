@@ -52,6 +52,13 @@
   .plinha .nome{font-weight:600;}.plinha .pts{font-weight:700;color:var(--madeira);}
   .plinha.eu{background:#f0e7d4;margin:0 -8px;padding:9px 8px;border-radius:8px;}
   .time-badge{font-size:11px;background:#e8dcc4;color:var(--madeira);padding:2px 7px;border-radius:10px;margin-left:6px;}
+  .time-cor-1{background:#E63946;color:#fff;} .time-cor-2{background:#457B9D;color:#fff;}
+  .time-cor-3{background:#2A9D8F;color:#fff;} .time-cor-4{background:#F4A261;color:#333;}
+  .time-cor-5{background:#9D84B7;color:#fff;} .time-cor-6{background:#F77F00;color:#fff;}
+  .time-pill{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .time-pill-op{flex:1;min-width:70px;padding:8px 6px;border-radius:9px;border:2px solid transparent;
+    cursor:pointer;font-size:13px;font-weight:700;text-align:center;}
+  .time-pill-op.sel{border-color:#fff;box-shadow:0 0 0 2px var(--madeira);}
   .lista-j{display:flex;flex-wrap:wrap;gap:6px;}
   .badge{background:#e8dcc4;color:var(--madeira);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;}
   .venc{font-size:17px;text-align:center;color:var(--madeira);font-weight:700;margin-bottom:12px;}
@@ -187,7 +194,7 @@
 <div id="alerta-tempo"></div>
 <div class="wrap">
   <div class="cabecalho">
-    <div class="logo">BOGGLE</div>
+    <div class="logo" style="cursor:pointer">BOGGLE</div>
     <button class="btn-cfg" id="btn-cfg" onclick="abrirConfig()" title="Configurações">⚙️</button>
   </div>
 
@@ -278,11 +285,43 @@
       <div id="cfg-coop-box" class="hidden" style="margin-top:6px">
         <div class="aviso left" style="margin-top:0">Caça cooperativa: todos encontram palavras juntos. Cada palavra descoberta fica visível para o grupo. Dica disponível.</div>
       </div>
-      <div class="aviso left" id="modo-desc"></div>
+      <div class="aviso left" id="modo-desc" style="margin-bottom:0"></div>
+
+      <!-- PACOTES DE PALAVRAS + PALAVRAS EXTRAS -->
+      <h3 class="mt">Palavras extras</h3>
+      <div id="pacotes-box" style="margin-bottom:10px">
+        <div class="aviso left" style="margin-top:0;margin-bottom:8px">Pacotes prontos — clique para ativar/desativar:</div>
+        <div class="dif-wrap" style="flex-wrap:wrap;gap:6px">
+          <div class="dif-op" data-pkg="nsfw"    onclick="togglePacote('nsfw')"    style="flex:none;padding:7px 12px">🔞 NSFW</div>
+          <div class="dif-op" data-pkg="geo"     onclick="togglePacote('geo')"     style="flex:none;padding:7px 12px">🌍 Geografia</div>
+          <div class="dif-op" data-pkg="alpha"   onclick="togglePacote('alpha')"   style="flex:none;padding:7px 12px">🧠 Gen Alpha</div>
+          <div class="dif-op" data-pkg="marcas"  onclick="togglePacote('marcas')"  style="flex:none;padding:7px 12px">™️ Marcas</div>
+        </div>
+        <div class="aviso left" id="pacote-msg" style="margin-top:6px"></div>
+      </div>
+      <textarea id="txt-palavras" placeholder="Adicionar palavras manualmente: uma por linha ou separadas por vírgula"></textarea>
+      <div class="row2">
+        <button class="mini" onclick="enviarPalavras('add')">Adicionar</button>
+        <button class="mini sec" onclick="enviarPalavras('remover')">Remover</button>
+      </div>
+      <div class="aviso left" id="pal-msg"></div>
+      <div class="chips" id="pal-lista" style="margin-top:8px"></div>
+
       <div id="cfg-time-box" class="hidden">
         <h3 class="mt">Seu time</h3>
-        <input id="cfg-time" placeholder="Nome do time" maxlength="16" oninput="salvarTime()">
-        <div class="aviso left">Quem escrever o mesmo nome joga junto.</div>
+        <div class="time-pill" id="time-cores">
+          <div class="time-pill-op time-cor-1" data-cor="1" onclick="escolherCorTime(1)">Vermelho</div>
+          <div class="time-pill-op time-cor-2" data-cor="2" onclick="escolherCorTime(2)">Azul</div>
+          <div class="time-pill-op time-cor-3" data-cor="3" onclick="escolherCorTime(3)">Verde</div>
+          <div class="time-pill-op time-cor-4" data-cor="4" onclick="escolherCorTime(4)">Laranja</div>
+          <div class="time-pill-op time-cor-5" data-cor="5" onclick="escolherCorTime(5)">Roxo</div>
+          <div class="time-pill-op time-cor-6" data-cor="6" onclick="escolherCorTime(6)">Fogo</div>
+        </div>
+        <div class="row2">
+          <input id="cfg-time" placeholder="Nome do time" maxlength="16" style="margin-bottom:0">
+          <button class="mini" onclick="criarTime()" style="flex-shrink:0;width:auto;padding:13px 14px">Criar time</button>
+        </div>
+        <div class="aviso left" style="margin-top:6px">Quem entrar no mesmo time joga junto.</div>
       </div>
     </div>
 
@@ -302,10 +341,13 @@
       <div class="cfg-linha" id="linha-tempo">
         <label>Tempo</label>
         <select id="cfg-duracao" onchange="salvarConfig()">
-          <option value="60">1 min</option>
-          <option value="120">2 min</option>
-          <option value="180" selected>3 min</option>
-          <option value="300">5 min</option>
+          <option value="30">30 s</option>
+          <option value="60">60 s</option>
+          <option value="90">90 s</option>
+          <option value="120">120 s</option>
+          <option value="180" selected>180 s</option>
+          <option value="300">300 s</option>
+          <option value="600">600 s</option>
         </select>
       </div>
       <div class="cfg-linha" id="linha-tamanho">
@@ -473,19 +515,6 @@
         Menor = precisa acertar mais o centro da letra (evita pegar diagonais sem querer).
       </div>
     </div>
-    <div class="card" id="cfg-palavras-card">
-      <h3>Palavras aceitas</h3>
-      <div class="aviso left" style="margin-top:0;margin-bottom:10px">
-        Adicione palavras que faltam no dicionário. Valem pra todos na sala, durante esta sessão.
-      </div>
-      <textarea id="txt-palavras" placeholder="Uma por linha, ou separadas por vírgula&#10;ex.: xablau, trecoteco"></textarea>
-      <div class="row2">
-        <button class="mini" onclick="enviarPalavras('add')">Adicionar</button>
-        <button class="mini sec" onclick="enviarPalavras('remover')">Remover</button>
-      </div>
-      <div class="aviso left" id="pal-msg"></div>
-      <div class="chips" id="pal-lista" style="margin-top:10px"></div>
-    </div>
     <button class="sec" onclick="fecharConfig()">Voltar</button>
   </div>
 </div>
@@ -496,7 +525,7 @@
 let NOME=null, faseAtual=null, rodadaAtual=-1;
 let PERFIL_TOKEN=null, PERFIL_USER=null, abaPerfil="entrar";
 let SALA_ID=null, SALA_NOME=null;
-let catSel="competitivo", serieSel=1;
+let catSel="competitivo", serieSel=1, corTimeSel=1;
 let lbDados=null, lbAba=0;
 let letters=[], path=[], cells=[], down=false, N=4;
 let pollTimer=null, telaAnterior="home", ultimoEstado=null;
@@ -507,6 +536,11 @@ let palavrasAnteriores=new Set();
 const DICA_ESPERA=10000;
 
 function $(id){return document.getElementById(id);}
+// Logo: vai ao home (confirma se estiver em sala)
+document.querySelector(".logo").addEventListener("click",()=>{
+  if(SALA_ID){if(!confirm("Sair da sala e voltar ao início?"))return;sairDaSala(true);}
+  else irHome();
+});
 function show(t){
   ["login","home","criar-sala","entrar-sala","lobby","jogo","resultado","fim","config","stats","leaderboard"]
   .forEach(x=>$("tela-"+x).classList.toggle("hidden",x!==t));
@@ -701,7 +735,19 @@ function atualizarUIConfig(){
   if($("serie-desc")) $("serie-desc").textContent=serieDesc[serieSel]||"";
   $("lbl-inicio").textContent=serieSel>1?"série":"partida";
 }
-async function salvarTime(){await apiSala("/time",{time:$("cfg-time").value});}
+const COR_TIME={1:"#E63946",2:"#457B9D",3:"#2A9D8F",4:"#F4A261",5:"#9D84B7",6:"#F77F00"};
+const COR_TIME_TEXT={1:"#fff",2:"#fff",3:"#fff",4:"#333",5:"#fff",6:"#fff"};
+function escolherCorTime(cor){
+  corTimeSel=cor;
+  document.querySelectorAll("[data-cor]").forEach(el=>el.classList.toggle("sel",+el.dataset.cor===cor));
+}
+async function criarTime(){
+  const nome=$("cfg-time").value.trim();
+  if(!nome)return;
+  await apiSala("/time",{time:nome,cor:corTimeSel});
+}
+// mantido para compatibilidade com oninput (não usado mais, mas não quebra)
+async function salvarTime(){}
 async function iniciar(){
   if(!souHost) return;
   Audio2.destravar();
@@ -711,8 +757,8 @@ async function voltarLobby(){
   if(!souHost) return;
   await apiSala("/nova",{});
 }
-async function sairDaSala(){
-  if(!confirm("Sair da sala?")) return;
+async function sairDaSala(silente){
+  if(!silente&&!confirm("Sair da sala?")) return;
   await apiSala("/sair",{});
   if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
   NOME=null;souHost=false;faseAtual=null;rodadaAtual=-1;
@@ -821,10 +867,13 @@ function aplicarEstado(st){
   if(st.fase==="lobby"){
     $("qtd").textContent=st.jogadores.length;
     $("lista-j").innerHTML=st.jogadores.map(j=>{
-      const tt=j.time?` <span class="time-badge">${esc(j.time)}</span>`:"";
+      const cor=j.cor?COR_TIME[j.cor]:null;
+      const ttStyle=cor?`style="background:${cor};color:${COR_TIME_TEXT[j.cor]}"`:""
+      const tt=j.time?` <span class="time-badge" ${ttStyle}>${esc(j.time)}</span>`:"";
       const host=j.nome===st.host?' <span class="time-badge">host</span>':"";
       return `<span class="badge">${esc(j.nome)}${host}${tt}</span>`;
     }).join("");
+    carregarPalavras();
   }
 
   if(st.fase==="jogando"){
@@ -1349,8 +1398,6 @@ function abrirConfig(){
                  faseAtual==="resultado"?"resultado":
                  faseAtual==="fim_campeonato"?"fim":
                  (SALA_ID?"lobby":"home");
-    $("cfg-palavras-card").classList.toggle("hidden",!SALA_ID);
-    if(SALA_ID) carregarPalavras();
     show("config");
   }
 }
@@ -1382,9 +1429,61 @@ function carregarMusicaLocal(){
   $("mp3-nome").textContent=`Usando: ${nome} (só no seu aparelho)`;
 }
 
+// ---- pacotes de palavras ----
+const PACOTES = {
+  nsfw: {
+    nome: "🔞 NSFW",
+    palavras: ["pau","xota","buceta","rola","pica","teta","bunda","cuzao","corno","piroca","punheta","sacanagem","foder","transar","gozar","viado","vadia","puta","safada","tarado","tesao","xoxota","rabao","fudendo","mamada","chupada","gozo","siririca","punheteiro","safadeza"]
+  },
+  geo: {
+    nome: "🌍 Geografia",
+    palavras: ["tocantins","sergipe","roraima","amapa","rondonia","acre","piaui","maranhao","ceara","paraiba","alagoas","espirito","goias","mato","para","amazonas","bahia","pernambuco","rio","sao","minas","parana","santa","catarina","gaucho","nordestino","amazonia","pantanal","cerrado","caatinga","brasilia","manaus","belem","fortaleza","recife","salvador","curitiba","florianopolis","porto","alegre","goiania","teresina","maceio","natal","joao","pessoa","macapa","palmas","porto","velho","boa","vista","acre","macaba"]
+  },
+  alpha: {
+    nome: "🧠 Gen Alpha",
+    palavras: ["sigma","rizz","bussin","slay","based","cringe","ratio","boomer","zoomer","chad","simp","sus","cap","nocap","vibe","lowkey","highkey","rent","free","mid","goated","glazing","cooked","gyatt","delulu","skibi","toilet","mewing","looksmaxx","fanum","tax","edging","aura","pookie","bestie","understood","periodt","snapped","ate","leaving","ick","hits","different","understood","respectfully","ngl","imo","tbh","idk","omg","wtf","smh","istg","ong","fr","bruh","bro","babe","twin","slay"]
+  },
+  marcas: {
+    nome: "™️ Marcas",
+    palavras: ["nike","adidas","google","apple","samsung","amazon","netflix","spotify","tiktok","instagram","facebook","twitter","youtube","whatsapp","telegram","uber","ifood","nubank","itau","bradesco","santander","petrobras","embraer","rede","globo","record","sbt","band","jovem","pan","radiobras","mc","donalds","subway","burger","king","dominos","pizza","hut","havaianas","hering","renner","c&a","zara","shein","shopee","mercado","livre","magalu","casas","bahia","ponto","frio"]
+  }
+};
+const pacotesAtivos = new Set();
+
+async function togglePacote(pkg) {
+  const el = document.querySelector(`[data-pkg="${pkg}"]`);
+  if (!el) return;
+  const ativo = pacotesAtivos.has(pkg);
+  const acao = ativo ? "remover" : "add";
+  const palavras = PACOTES[pkg]?.palavras;
+  if (!palavras?.length) return;
+
+  el.style.opacity = "0.5";
+  el.style.pointerEvents = "none";
+
+  const r = await apiSala("/palavras", { palavras: palavras.join(","), acao });
+
+  el.style.opacity = "";
+  el.style.pointerEvents = "";
+
+  if (r) {
+    if (ativo) { pacotesAtivos.delete(pkg); el.classList.remove("sel"); }
+    else       { pacotesAtivos.add(pkg);    el.classList.add("sel"); }
+    const n = r.aplicadas?.length || 0;
+    $("pacote-msg").textContent = ativo
+      ? `Pacote ${PACOTES[pkg].nome} removido (${n} palavras).`
+      : `Pacote ${PACOTES[pkg].nome} ativado (+${n} palavras).`;
+    carregarPalavras(true);
+  }
+}
+
 // ---- palavras customizadas ----
-async function carregarPalavras(){
+let _ultimaCarregPalavras=0;
+async function carregarPalavras(forcar){
   if(!SALA_ID) return;
+  const agora=Date.now();
+  if(!forcar&&agora-_ultimaCarregPalavras<10000) return;
+  _ultimaCarregPalavras=agora;
   const r=await apiSala("/palavras");
   if(r&&r.palavras){
     $("pal-lista").innerHTML=r.palavras.length
@@ -1403,7 +1502,7 @@ async function enviarPalavras(acao){
   if(ign) m+=acao==="add"?` ${ign} já existia(m) no dicionário.`:` ${ign} não era(m) palavra(s) desta sessão.`;
   $("pal-msg").textContent=m;
   $("txt-palavras").value="";
-  carregarPalavras();
+  carregarPalavras(true);
 }
 
 // ---- restaurar preferências ----

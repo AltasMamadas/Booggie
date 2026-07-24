@@ -2,3 +2,4 @@ flask
 gunicorn
 psycopg[binary]
 bcrypt
+python-dotenv

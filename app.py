@@ -5,6 +5,8 @@ Modo cooperativo (caça com palavras partilhadas) e competitivo.
 """
 import time, random, threading, secrets
 from flask import Flask, request, jsonify, send_from_directory
+from dotenv import load_dotenv
+load_dotenv()
 import game_core as gc
 import auth, db
 
@@ -279,15 +281,19 @@ def _checar_fim(estado):
         estado["fase"] = "resultado"
 
 
+TIMEOUT_LOBBY = 20   # segundos sem poll para expulsar do lobby/resultado
+TIMEOUT_JOGO  = 40   # durante partida, mais tolerante
+
 def _limpar_ausentes(sala):
     estado = sala["estado"]
     agora = time.time()
     if estado["fase"] != "jogando":
-        fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > 30]
+        fora = [n for n, j in estado["jogadores"].items()
+                if agora - j["visto"] > TIMEOUT_LOBBY]
         for n in fora:
             del estado["jogadores"][n]
     elif (estado["jogadores"] and
-          all(agora - j["visto"] > 30 for j in estado["jogadores"].values())):
+          all(agora - j["visto"] > TIMEOUT_JOGO for j in estado["jogadores"].values())):
         _reset_para_lobby(estado, full=True)
         estado["host"] = None
         return
@@ -304,10 +310,23 @@ def _limpar_salas_vazias():
     para_remover = [
         sid for sid, sala in salas.items()
         if not sala["estado"]["jogadores"]
-        and (agora - sala.get("vazia_desde", agora)) > 300
+        and (agora - sala.get("vazia_desde", agora)) > 60
     ]
     for sid in para_remover:
         del salas[sid]
+
+
+def _loop_limpeza():
+    """Thread de limpeza: roda a cada 30s, processa ausentes e remove salas mortas."""
+    while True:
+        time.sleep(30)
+        with LOCK:
+            for sala in list(salas.values()):
+                _limpar_ausentes(sala)
+            _limpar_salas_vazias()
+
+
+threading.Thread(target=_loop_limpeza, daemon=True).start()
 
 
 # ---- rotas de perfil ----
@@ -372,6 +391,8 @@ def listar_salas():
     _, _, erro = _exigir_login()
     if erro: return erro
     with LOCK:
+        for sala in list(salas.values()):
+            _limpar_ausentes(sala)
         _limpar_salas_vazias()
         lista = [{
             "id": sala["id"],
@@ -399,7 +420,7 @@ def criar_sala():
         sid = _gerar_sala_id()
         e = estado_inicial()
         e["jogadores"][nome] = {
-            "palavras": set(), "visto": time.time(), "time": None,
+            "palavras": set(), "visto": time.time(), "time": None, "cor": None,
             "vivo": True, "fim_individual": 0, "ultima_palavra": 0,
             "perfil_id": pid,
         }
@@ -509,11 +530,18 @@ def set_time(sala_id):
     _, nome, erro = _exigir_login()
     if erro: return erro
     t = (data.get("time", "") or "").strip()[:16] or None
+    cor = data.get("cor")
+    if cor is not None:
+        try: cor = int(cor)
+        except: cor = None
+    if cor not in range(1, 7): cor = None
     with LOCK:
         sala, err = _sala_ou_erro(sala_id)
         if err: return err
         if nome in sala["estado"]["jogadores"]:
             sala["estado"]["jogadores"][nome]["time"] = t
+            if cor is not None:
+                sala["estado"]["jogadores"][nome]["cor"] = cor
     return jsonify({"ok": True})
 
 
@@ -699,7 +727,7 @@ def get_estado(sala_id):
 
         jogadores_info = []
         for n, j in estado["jogadores"].items():
-            info = {"nome": n, "time": j["time"]}
+            info = {"nome": n, "time": j["time"], "cor": j.get("cor")}
             if modo == "sobrevivencia":
                 info["vivo"] = j.get("vivo", True)
                 info["restante"] = max(0, int(round(j.get("fim_individual", agora) - agora)))
@@ -795,4 +823,5 @@ def zerar_ranking(sala_id):
 if __name__ == "__main__":
     import os
     porta = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=porta, debug=False)
+    dev = os.environ.get("FLASK_ENV") != "production"
+    app.run(host="0.0.0.0", port=porta, debug=dev)
