@@ -1,0 +1,14 @@
+{
+  "name": "LEXICO.IO",
+  "short_name": "Lexico",
+  "description": "Jogo de palavras multiplayer",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#131c28",
+  "theme_color": "#2ec4b6",
+  "icons": [
+    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

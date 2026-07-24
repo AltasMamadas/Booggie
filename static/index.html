@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#2ec4b6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
 <title>LEXICO.IO</title>
 <style>
   :root{
@@ -21,6 +27,8 @@
     border:1px solid var(--borda);border-radius:9px;font-size:18px;margin:0;}
   .sub{text-align:center;color:var(--sub-txt);font-size:13px;margin-bottom:18px;}
   .hidden{display:none!important;}
+  [id^="tela-"]{animation:fadeIn .25s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
   input,select,textarea{width:100%;padding:13px;font-size:16px;border:1px solid var(--borda);
     border-radius:10px;background:var(--btn-sec-bg);margin-bottom:10px;color:var(--texto);font-family:inherit;}
   textarea{min-height:80px;resize:vertical;}
@@ -315,6 +323,7 @@
       <div class="perfil-info">
         <div class="perfil-nome" id="perfil-card-nome"></div>
         <div class="perfil-ach" id="perfil-card-ach">—</div>
+        <div class="perfil-ach" id="perfil-card-streak" style="font-size:12px;margin-top:2px;"></div>
       </div>
       <div class="perfil-seta">›</div>
     </div>
@@ -325,7 +334,30 @@
       <button class="sec mini" onclick="abrirConquistas()">🏅 Conquistas</button>
     </div>
     <div class="row2">
+      <button class="sec mini" onclick="abrirAmigos()">👥 Amigos</button>
       <button class="sec mini" onclick="abrirConfig()">⚙️ Configurações</button>
+    </div>
+  </div>
+
+  <!-- AMIGOS -->
+  <div id="tela-amigos" class="hidden">
+    <div class="cfg-topo">
+      <div class="cfg-topo-titulo">Amigos</div>
+      <button class="btn-cfg" onclick="irHome()">✕</button>
+    </div>
+    <div class="card">
+      <h3>Adicionar amigo</h3>
+      <input id="amigo-username" placeholder="Nome de usuario" maxlength="16" autocomplete="off">
+      <button class="mini" onclick="adicionarAmigo()">Enviar pedido</button>
+      <div class="aviso left" id="amigo-msg"></div>
+    </div>
+    <div class="card" id="amigos-pendentes" style="display:none">
+      <h3>Pedidos recebidos</h3>
+      <div id="amigos-pendentes-lista"></div>
+    </div>
+    <div class="card">
+      <h3>Seus amigos</h3>
+      <div id="amigos-lista"><div style="color:var(--sub-txt);font-size:13px;">Nenhum amigo ainda</div></div>
     </div>
   </div>
 
@@ -370,6 +402,16 @@
     <div class="card">
       <h3>Na sala (<span id="qtd">0</span>)</h3>
       <div class="lista-j" id="lista-j"></div>
+    </div>
+
+    <div class="card" id="lobby-chat-card">
+      <h3>Chat</h3>
+      <div id="lobby-chat" style="max-height:140px;overflow-y:auto;font-size:13px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:6px">
+        <input id="lobby-chat-input" placeholder="Mensagem..." maxlength="200" autocomplete="off" style="margin:0;flex:1"
+          onkeydown="if(event.key==='Enter')enviarChat()">
+        <button class="mini sec" style="width:auto;padding:8px 12px;margin:0" onclick="enviarChat()">Enviar</button>
+      </div>
     </div>
 
     <div class="card">
@@ -782,7 +824,7 @@ document.querySelector(".logo").addEventListener("click",()=>{
   else irHome();
 });
 function show(t){
-  ["login","home","criar-sala","entrar-sala","lobby","jogo","resultado","fim","config","stats","leaderboard"]
+  ["login","home","criar-sala","entrar-sala","lobby","jogo","resultado","fim","config","stats","leaderboard","amigos"]
   .forEach(x=>$("tela-"+x).classList.toggle("hidden",x!==t));
 }
 function esc(s){return(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
@@ -921,6 +963,7 @@ function irHome(){
   show("home");
   renderPerfilCard();
   carregarResumoAchievements().then(renderPerfilCard);
+  carregarStreak().then(renderPerfilCard);
 }
 function compartilharSala(){
   if(!SALA_ID) return;
@@ -929,6 +972,13 @@ function compartilharSala(){
     const btn=document.querySelector('[onclick="compartilharSala()"]');
     if(btn){const orig=btn.textContent;btn.textContent="✅ Copiado!";setTimeout(()=>btn.textContent=orig,2000);}
   }).catch(()=>prompt("Copie o link:",url));
+}
+async function enviarChat(){
+  const inp=$("lobby-chat-input"); const t=inp.value.trim();
+  if(!t||!SALA_ID) return;
+  inp.value="";
+  await apiSala("/chat",{texto:t});
+  Audio2.sfx("chat");
 }
 function irCriarSala(){
   $("nome-sala").value="";
@@ -1129,17 +1179,18 @@ function processarNotificacoes(st){
       if(toastsVistos.has(chave))return;
       toastsVistos.add(chave);
       if(primeiroPollSala)return;   // não despeja eventos antigos ao entrar
-      if(e.nome===NOME)return;      // não notifica sobre si mesmo
+      if(e.nome===NOME)return;
       mostrarToast({tipo:e.tipo==="saiu"?"saiu":"",
         icone:e.tipo==="saiu"?"👋":"🚪",titulo:e.texto});
+      Audio2.sfx(e.tipo==="saiu"?"saiu":"entrou");
     });
   }
   primeiroPollSala=false;
   // conquistas recém-desbloqueadas
   if(Array.isArray(st.conquistas_novas)&&st.conquistas_novas.length){
     st.conquistas_novas.forEach((a,i)=>{
-      setTimeout(()=>mostrarToast({tipo:"ach",icone:a.icone,
-        titulo:"Conquista: "+a.nome,sub:a.desc,duracao:8000}),i*400);
+      setTimeout(()=>{mostrarToast({tipo:"ach",icone:a.icone,
+        titulo:"Conquista: "+a.nome,sub:a.desc,duracao:8000});Audio2.sfx("conquista");},i*400);
     });
     achResumo=null;                 // invalida a contagem do card de perfil
     carregarResumoAchievements(true).then(renderPerfilCard);
@@ -1154,6 +1205,12 @@ async function carregarResumoAchievements(forcar){
   if(r&&r.ok) achResumo={ganhos:Object.keys(r.desbloqueados||{}).length,total:r.catalogo.length};
   return achResumo;
 }
+let perfilStreak=null;
+async function carregarStreak(){
+  const r=await api("/api/perfil/stats");
+  if(r&&r.ok){perfilStreak={current:parseInt(r.stats.current_streak)||0,best:parseInt(r.stats.best_streak)||0};}
+  return perfilStreak;
+}
 function renderPerfilCard(){
   const av=$("perfil-card-av"); if(av) av.innerHTML=avatarSVG(PERFIL_AVATAR,50);
   const nm=$("perfil-card-nome"); if(nm) nm.textContent=PERFIL_USER||"";
@@ -1161,6 +1218,10 @@ function renderPerfilCard(){
   if(ac) ac.textContent=achResumo
     ?`🏅 ${achResumo.ganhos} de ${achResumo.total} conquistas`
     :"🏅 carregando...";
+  const sk=$("perfil-card-streak");
+  if(sk) sk.textContent=perfilStreak
+    ?`🔥 ${perfilStreak.current} dia${perfilStreak.current!==1?"s":""} seguido${perfilStreak.current!==1?"s":""}`
+    :"";
 }
 async function iniciar(){
   if(!souHost) return;
@@ -1254,6 +1315,13 @@ function aplicarEstado(st){
     if(av) av.textContent=souHost
       ?"Você é o host: configure e inicie quando todos estiverem prontos."
       :`Aguardando o host (${esc(st.host||"—")}) iniciar a partida.`;
+    // chat
+    if(Array.isArray(st.chat)){
+      const el=$("lobby-chat");
+      const wasBottom=el.scrollHeight-el.scrollTop-el.clientHeight<30;
+      const newHtml=st.chat.map(m=>`<div><b style="color:var(--accent)">${esc(m.nome)}</b>: ${esc(m.texto)}</div>`).join("");
+      if(el.innerHTML!==newHtml){el.innerHTML=newHtml;if(wasBottom)el.scrollTop=el.scrollHeight;}
+    }
   }
 
   if(st.fase!==faseAtual||st.rodada!==rodadaAtual){
@@ -1807,6 +1875,50 @@ function _telaVisivel(){
 }
 async function abrirStats(){statsOrigem=_telaVisivel();show("stats");mudarAbaStats(0);}
 function abrirConquistas(){statsOrigem=_telaVisivel();show("stats");mudarAbaStats(2);}
+
+// ---- amigos ----
+async function abrirAmigos(){show("amigos");await carregarAmigos();}
+async function carregarAmigos(){
+  const r=await api("/api/amigos");
+  if(!r||!r.ok) return;
+  const pendentes=r.amigos.filter(a=>a.status==="pending"&&a.direcao==="recebido");
+  const aceitos=r.amigos.filter(a=>a.status==="accepted");
+  const enviados=r.amigos.filter(a=>a.status==="pending"&&a.direcao==="enviado");
+  const pc=$("amigos-pendentes");
+  if(pendentes.length){
+    pc.style.display="";
+    $("amigos-pendentes-lista").innerHTML=pendentes.map(a=>
+      `<div class="plinha"><span class="nome">${avatarSVG(a.avatar,24)} ${esc(a.username)}</span>`+
+      `<button class="mini sec" style="width:auto;padding:6px 12px" onclick="aceitarAmigo('${a.friendship_id}')">Aceitar</button></div>`
+    ).join("");
+  } else pc.style.display="none";
+  let html="";
+  if(aceitos.length) html+=aceitos.map(a=>
+    `<div class="plinha"><span class="nome">${avatarSVG(a.avatar,24)} ${esc(a.username)}`+
+    `<span style="font-size:11px;margin-left:6px;color:${a.online?"var(--verde)":"var(--sub-txt)"}">${a.online?"online":"offline"}</span></span>`+
+    `<button class="mini sec" style="width:auto;padding:6px 10px;color:var(--vermelho)" onclick="removerAmigo('${esc(a.username)}')">✕</button></div>`
+  ).join("");
+  if(enviados.length) html+=`<div style="margin-top:8px;font-size:11px;color:var(--sub-txt)">Pedidos enviados</div>`+
+    enviados.map(a=>`<div class="plinha"><span class="nome">${avatarSVG(a.avatar,24)} ${esc(a.username)}</span><span style="font-size:11px;color:var(--sub-txt)">pendente</span></div>`).join("");
+  if(!aceitos.length&&!enviados.length) html=`<div style="color:var(--sub-txt);font-size:13px;">Nenhum amigo ainda</div>`;
+  $("amigos-lista").innerHTML=html;
+}
+async function adicionarAmigo(){
+  const inp=$("amigo-username"); const u=inp.value.trim();
+  if(!u){$("amigo-msg").textContent="Digite um nome";return;}
+  const r=await api("/api/amigos/adicionar",{username:u});
+  $("amigo-msg").textContent=r.ok?"Pedido enviado!":(r.motivo||"Erro");
+  if(r.ok){inp.value="";carregarAmigos();}
+}
+async function aceitarAmigo(fid){
+  await api("/api/amigos/aceitar",{friendship_id:fid});
+  carregarAmigos();
+}
+async function removerAmigo(username){
+  if(!confirm("Remover "+username+" dos amigos?")) return;
+  await api("/api/amigos/remover",{username});
+  carregarAmigos();
+}
 function fecharStats(){show(statsOrigem);}
 function mudarAbaStats(idx){
   statsAbaAtual=idx;
@@ -2128,6 +2240,7 @@ async function enviarPalavras(acao){
     if(salaViaURL) sessionStorage.setItem("sala_pendente",salaViaURL);
   }
 })();
+if("serviceWorker" in navigator){navigator.serviceWorker.register("/static/sw.js").catch(()=>{});}
 </script>
 </body>
 </html>
