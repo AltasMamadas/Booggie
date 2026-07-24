@@ -68,7 +68,26 @@ def estado_inicial():
         "celulas_bloqueadas": {},  # restricao: {idx: timestamp_expira}
         "disputa": {},             # duelo: {word: {achador, expira}}
         "bonus_duelo": {},         # duelo: {nome: pts_bonus}
+        "eventos": [],             # notificações da sala (entrou/saiu)
+        "evento_seq": 0,
     }
+
+
+# Conquistas recém-desbloqueadas esperando entrega ao jogador no próximo poll.
+# {profile_id: [achievement_id, ...]} — lock próprio pra não disputar com o LOCK do jogo.
+NOTIF_ACH = {}
+NOTIF_LOCK = threading.Lock()
+
+EVENTO_JANELA = 15  # segundos que um evento fica disponível para entrega
+
+
+def _add_evento(estado, tipo, nome, texto):
+    estado["evento_seq"] += 1
+    estado["eventos"].append({
+        "id": estado["evento_seq"], "tipo": tipo, "nome": nome,
+        "texto": texto, "ts": time.time(),
+    })
+    estado["eventos"] = estado["eventos"][-20:]
 
 
 def _gerar_sala_id():
@@ -330,6 +349,7 @@ def _limpar_ausentes(sala):
         fora = [n for n, j in estado["jogadores"].items() if agora - j["visto"] > TIMEOUT_LOBBY]
         for n in fora:
             del estado["jogadores"][n]
+            _add_evento(estado, "saiu", n, f"{n} saiu da sala")
     elif (estado["jogadores"] and
           all(agora - j["visto"] > TIMEOUT_JOGO for j in estado["jogadores"].values())):
         _reset_para_lobby(estado, full=True)
@@ -522,6 +542,7 @@ def entrar_sala(sala_id):
                 "vivo": True, "fim_individual": 0, "ultima_palavra": 0,
                 "perfil_id": pid, "avatar": avatar,
             }
+            _add_evento(estado, "entrou", nome, f"{nome} entrou na sala")
         else:
             estado["jogadores"][nome]["visto"] = time.time()
             estado["jogadores"][nome]["perfil_id"] = pid
@@ -543,6 +564,7 @@ def sair(sala_id):
         estado = sala["estado"]
         if nome in estado["jogadores"]:
             del estado["jogadores"][nome]
+            _add_evento(estado, "saiu", nome, f"{nome} saiu da sala")
         _passar_host(estado)
         if not estado["jogadores"]:
             _reset_para_lobby(estado, full=True)
@@ -768,7 +790,7 @@ def dica(sala_id):
 
 @app.route("/api/sala/<sala_id>/estado")
 def get_estado(sala_id):
-    _, nome, erro = _exigir_login()
+    pid_poll, nome, erro = _exigir_login()
     if erro: return erro
     with LOCK:
         sala, err = _sala_ou_erro(sala_id)
@@ -883,13 +905,38 @@ def get_estado(sala_id):
         if modo == "caca" and jogando:
             achadas = len(coletivas) if modo_cat == "cooperativo" else len(minhas)
             resp["progresso"] = {"achadas": achadas, "total": len(estado["grade_palavras"])}
+        # eventos recentes da sala (entrou/saiu) — o cliente deduplica por id
+        recentes = [e for e in estado["eventos"] if agora - e["ts"] <= EVENTO_JANELA]
+        if recentes:
+            resp["eventos"] = [{"id": e["id"], "tipo": e["tipo"],
+                                "nome": e["nome"], "texto": e["texto"]} for e in recentes]
+
+        # conquistas recém-desbloqueadas deste jogador (entrega única)
+        if pid_poll:
+            with NOTIF_LOCK:
+                ids = NOTIF_ACH.pop(str(pid_poll), None)
+            if ids:
+                vistos, lista = set(), []
+                for aid in ids:
+                    if aid in vistos:
+                        continue
+                    vistos.add(aid)
+                    a = ach.BY_ID.get(aid)
+                    if a:
+                        lista.append({"id": a[0], "nome": a[1], "desc": a[2], "icone": a[3]})
+                if lista:
+                    resp["conquistas_novas"] = lista
+
         payload = jsonify(resp)  # serializa ainda sob o LOCK (estado consistente)
 
     # persistência ao Supabase FORA do LOCK — I/O de rede não pode bloquear
     # os polls das outras salas. Roda no máximo uma vez por partida.
     for perfil_id, dados in pendentes_persistencia:
         try:
-            db.persistir_partida(perfil_id, dados)
+            novos = db.persistir_partida(perfil_id, dados)
+            if novos:
+                with NOTIF_LOCK:
+                    NOTIF_ACH.setdefault(str(perfil_id), []).extend(novos)
         except Exception as e:
             print(f"[perfil] falha ao persistir partida: {e}")
     return payload

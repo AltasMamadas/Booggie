@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Lexico</title>
+<title>LEXICO.IO</title>
 <style>
   :root{
     --accent:#2ec4b6;--accent2:#1a9e92;--madeira:#2ec4b6;
@@ -117,6 +117,37 @@
   .ach-ic{font-size:26px;line-height:1;margin-bottom:4px;}
   .ach-nome{font-size:13px;font-weight:700;color:var(--texto);}
   .ach-desc{font-size:11px;color:var(--sub-txt);margin-top:2px;}
+  /* card de perfil na home */
+  .perfil-card{display:flex;align-items:center;gap:12px;background:var(--card-bg);
+    border:1px solid var(--borda);border-radius:14px;padding:12px 14px;margin:14px 0 16px;cursor:pointer;
+    transition:border-color .15s,transform .1s;}
+  .perfil-card:active{transform:scale(.99);}
+  .perfil-card:hover{border-color:var(--accent);}
+  .perfil-av{flex-shrink:0;display:flex;}
+  .perfil-info{flex:1;min-width:0;}
+  .perfil-nome{font-size:17px;font-weight:800;color:var(--texto);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .perfil-ach{font-size:12px;color:var(--accent);font-weight:600;margin-top:2px;}
+  .perfil-seta{color:var(--sub-txt);font-size:26px;line-height:1;flex-shrink:0;}
+  /* notificações (toasts) */
+  #toasts{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:200;
+    width:calc(100% - 32px);max-width:420px;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+  .toast{display:flex;align-items:center;gap:10px;background:var(--card-bg);
+    border:1px solid var(--borda);border-left:4px solid var(--accent);border-radius:11px;
+    padding:10px 12px;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:auto;
+    animation:toastEntra .28s cubic-bezier(.34,1.4,.64,1);}
+  .toast.ach{border-left-color:#e0bc32;}
+  .toast.saiu{border-left-color:var(--sub-txt);}
+  .toast-ic{font-size:20px;line-height:1;flex-shrink:0;}
+  .toast-txt{flex:1;min-width:0;font-size:13px;color:var(--texto);}
+  .toast-txt b{display:block;font-size:14px;}
+  .toast-txt small{color:var(--sub-txt);font-size:11px;}
+  .toast-x{flex-shrink:0;width:26px;height:26px;padding:0;margin:0;background:transparent;
+    color:var(--sub-txt);border:1px solid var(--borda);border-radius:7px;font-size:15px;line-height:1;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .toast-x:active{background:var(--btn-sec-bg);}
+  .toast.saindo{animation:toastSai .22s ease-in forwards;}
+  @keyframes toastEntra{0%{opacity:0;transform:translateY(-14px) scale(.96);}100%{opacity:1;transform:none;}}
+  @keyframes toastSai{0%{opacity:1;}100%{opacity:0;transform:translateY(-10px) scale(.97);}}
   .cell.bloqueada{opacity:.28;pointer-events:none;filter:grayscale(1);}
   @keyframes dicaBrilho{0%,100%{box-shadow:0 3px 0 rgba(0,0,0,.4);border-color:var(--borda);}
     50%{box-shadow:0 0 14px 3px rgba(46,196,182,.55);border-color:var(--accent);}}
@@ -208,7 +239,6 @@
   .cfg-topo{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
   .cfg-topo-titulo{font-size:18px;font-weight:700;color:var(--texto);}
   /* home */
-  .home-greeting{font-size:22px;font-weight:700;color:var(--texto);margin:18px 0 22px;text-align:center;}
   /* sala list */
   .sala-card{background:var(--card-bg);border:1px solid var(--borda);border-radius:14px;padding:14px;margin-bottom:10px;}
   .sala-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
@@ -223,9 +253,10 @@
 </head>
 <body>
 <div id="alerta-tempo"></div>
+<div id="toasts"></div>
 <div class="wrap">
   <div class="cabecalho">
-    <div class="logo" style="cursor:pointer">LEXICO</div>
+    <div class="logo" style="cursor:pointer">LEXICO<span style="opacity:.55">.IO</span></div>
     <button class="btn-cfg" id="btn-cfg" onclick="abrirConfig()" title="Configurações">⚙️</button>
   </div>
 
@@ -248,11 +279,21 @@
 
   <!-- HOME -->
   <div id="tela-home" class="hidden">
-    <div class="home-greeting">Olá, <span id="home-user-nome"></span>!</div>
+    <div class="perfil-card" id="perfil-card" onclick="abrirStats()" title="Ver estatísticas e histórico">
+      <div class="perfil-av" id="perfil-card-av"></div>
+      <div class="perfil-info">
+        <div class="perfil-nome" id="perfil-card-nome"></div>
+        <div class="perfil-ach" id="perfil-card-ach">—</div>
+      </div>
+      <div class="perfil-seta">›</div>
+    </div>
     <button onclick="irCriarSala()">➕ Criar sala</button>
     <button class="sec" onclick="irEntrarSala()">🚪 Entrar em sala</button>
     <div class="row2" style="margin-top:4px">
       <button class="sec mini" onclick="abrirLeaderboard()">🏆 Leaderboard</button>
+      <button class="sec mini" onclick="abrirConquistas()">🏅 Conquistas</button>
+    </div>
+    <div class="row2">
       <button class="sec mini" onclick="abrirConfig()">⚙️ Configurações</button>
     </div>
   </div>
@@ -747,8 +788,9 @@ function logoutPerfil(){
 
 // ---- home ----
 function irHome(){
-  if($("home-user-nome")) $("home-user-nome").textContent=PERFIL_USER||"";
   show("home");
+  renderPerfilCard();
+  carregarResumoAchievements().then(renderPerfilCard);
 }
 function compartilharSala(){
   if(!SALA_ID) return;
@@ -928,6 +970,68 @@ async function criarTime(){
 }
 // mantido para compatibilidade com oninput (não usado mais, mas não quebra)
 async function salvarTime(){}
+
+// ---- notificações (toasts) ----
+const toastsVistos=new Set();
+let primeiroPollSala=true;
+function mostrarToast(opt){
+  const cont=$("toasts"); if(!cont) return;
+  const el=document.createElement("div");
+  el.className="toast"+(opt.tipo?" "+opt.tipo:"");
+  el.innerHTML=`<div class="toast-ic">${opt.icone||"🔔"}</div>
+    <div class="toast-txt"><b>${esc(opt.titulo||"")}</b>${opt.sub?`<small>${esc(opt.sub)}</small>`:""}</div>
+    <button class="toast-x" title="Fechar" aria-label="Fechar">✕</button>`;
+  el.querySelector(".toast-x").addEventListener("click",()=>fecharToast(el));
+  cont.appendChild(el);
+  while(cont.children.length>4) cont.removeChild(cont.firstChild);
+  setTimeout(()=>fecharToast(el),opt.duracao||5000);
+}
+function fecharToast(el){
+  if(!el||!el.parentNode||el.classList.contains("saindo"))return;
+  el.classList.add("saindo");
+  setTimeout(()=>{if(el.parentNode)el.parentNode.removeChild(el);},220);
+}
+function processarNotificacoes(st){
+  // eventos da sala (entrou/saiu) — deduplicados por sala+id
+  if(Array.isArray(st.eventos)){
+    st.eventos.forEach(e=>{
+      const chave=SALA_ID+":"+e.id;
+      if(toastsVistos.has(chave))return;
+      toastsVistos.add(chave);
+      if(primeiroPollSala)return;   // não despeja eventos antigos ao entrar
+      if(e.nome===NOME)return;      // não notifica sobre si mesmo
+      mostrarToast({tipo:e.tipo==="saiu"?"saiu":"",
+        icone:e.tipo==="saiu"?"👋":"🚪",titulo:e.texto});
+    });
+  }
+  primeiroPollSala=false;
+  // conquistas recém-desbloqueadas
+  if(Array.isArray(st.conquistas_novas)&&st.conquistas_novas.length){
+    st.conquistas_novas.forEach((a,i)=>{
+      setTimeout(()=>mostrarToast({tipo:"ach",icone:a.icone,
+        titulo:"Conquista: "+a.nome,sub:a.desc,duracao:8000}),i*400);
+    });
+    achResumo=null;                 // invalida a contagem do card de perfil
+    carregarResumoAchievements(true).then(renderPerfilCard);
+  }
+}
+
+// ---- card de perfil (home) ----
+let achResumo=null;
+async function carregarResumoAchievements(forcar){
+  if(achResumo&&!forcar) return achResumo;
+  const r=await api("/api/perfil/achievements");
+  if(r&&r.ok) achResumo={ganhos:Object.keys(r.desbloqueados||{}).length,total:r.catalogo.length};
+  return achResumo;
+}
+function renderPerfilCard(){
+  const av=$("perfil-card-av"); if(av) av.innerHTML=avatarSVG(PERFIL_AVATAR,50);
+  const nm=$("perfil-card-nome"); if(nm) nm.textContent=PERFIL_USER||"";
+  const ac=$("perfil-card-ach");
+  if(ac) ac.textContent=achResumo
+    ?`🏅 ${achResumo.ganhos} de ${achResumo.total} conquistas`
+    :"🏅 carregando...";
+}
 async function iniciar(){
   if(!souHost) return;
   Audio2.destravar();
@@ -958,6 +1062,7 @@ async function encerrarPartida(){
 function iniciarPoll(){
   if(pollTimer) clearInterval(pollTimer);
   ultimaListaJSig=null;
+  toastsVistos.clear(); primeiroPollSala=true;
   poll(); pollTimer=setInterval(poll,1500);
 }
 async function poll(){
@@ -977,6 +1082,7 @@ async function poll(){
 }
 
 function aplicarEstado(st){
+  processarNotificacoes(st);
   souHost=!!st.sou_host;
   $("btn-cfg").classList.toggle("hidden",st.fase==="jogando");
   const be=$("btn-encerrar");
@@ -1562,8 +1668,14 @@ function renderizarLb(){
 
 // ---- estatísticas ----
 let statsAbaAtual=0;
-async function abrirStats(){show("stats");mudarAbaStats(0);}
-function fecharStats(){show("config");}
+let statsOrigem="config";
+function _telaVisivel(){
+  return ["home","lobby","config","jogo","resultado","fim"]
+    .find(x=>$("tela-"+x)&&!$("tela-"+x).classList.contains("hidden"))||"home";
+}
+async function abrirStats(){statsOrigem=_telaVisivel();show("stats");mudarAbaStats(0);}
+function abrirConquistas(){statsOrigem=_telaVisivel();show("stats");mudarAbaStats(2);}
+function fecharStats(){show(statsOrigem);}
 function mudarAbaStats(idx){
   statsAbaAtual=idx;
   [0,1,2].forEach(i=>{const b=$("stats-tab-"+i);if(b)b.classList.toggle("sec",i!==idx);});
@@ -1581,6 +1693,7 @@ async function carregarConquistas(){
   if(!r||!r.ok){el.innerHTML='<div class="aviso">Erro ao carregar.</div>';return;}
   const desb=r.desbloqueados||{};
   const total=r.catalogo.length, ganhos=Object.keys(desb).length;
+  achResumo={ganhos,total}; renderPerfilCard();
   // agrupa por categoria
   const cats={};
   r.catalogo.forEach(a=>{(cats[a.categoria]=cats[a.categoria]||[]).push(a);});
@@ -1611,8 +1724,12 @@ async function escolherAvatar(id){
   const anterior=PERFIL_AVATAR;
   PERFIL_AVATAR=id; renderAvatarGrid();
   salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,SALA_ID,id);
+  renderPerfilCard();
   const r=await api("/api/perfil/avatar",{avatar:id});
-  if(!r||!r.ok){PERFIL_AVATAR=anterior;renderAvatarGrid();salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,SALA_ID,anterior);return;}
+  if(!r||!r.ok){
+    PERFIL_AVATAR=anterior;renderAvatarGrid();renderPerfilCard();
+    salvarPerfilLocal(PERFIL_TOKEN,PERFIL_USER,SALA_ID,anterior);return;
+  }
   ultimaListaJSig=null; // força re-render da lista do lobby com o novo avatar
 }
 async function carregarMeusStats(){
