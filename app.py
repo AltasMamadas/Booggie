@@ -749,12 +749,14 @@ def get_estado(sala_id):
             minhas = sorted(estado["jogadores"][nome]["palavras"])
             vivo = estado["jogadores"][nome].get("vivo", True)
 
-        palavras_coletivas = None
-        if modo_cat == "cooperativo" and jogando:
-            col = set()
+        # união das palavras do grupo — computada no máximo uma vez por request
+        # (reusada por palavras_coletivas e pelo progresso da caça cooperativa)
+        coletivas = None
+        if jogando and modo_cat == "cooperativo":
+            coletivas = set()
             for j in estado["jogadores"].values():
-                col |= j["palavras"]
-            palavras_coletivas = sorted(col)
+                coletivas |= j["palavras"]
+        palavras_coletivas = sorted(coletivas) if coletivas is not None else None
 
         jogadores_info = []
         for n, j in estado["jogadores"].items():
@@ -787,17 +789,22 @@ def get_estado(sala_id):
             "grade": estado["grade"] if jogando else [],
             "linhas": estado["linhas"],
             "colunas": estado["colunas"],
-            "resumo": estado["resumo"] if estado["fase"] in ("resultado", "fim_campeonato") else {},
             "restante": restante,
             "vivo": vivo,
             "jogadores": jogadores_info,
             "minhas_palavras": minhas,
-            "placar": estado["placar"],
-            "placar_times": estado["placar_times"],
-            "vitorias": estado["vitorias"],
-            "historico": estado["historico"],
-            "ranking": estado["ranking"],
         }
+        # Campos de placar/série só mudam entre partidas — durante "jogando" o
+        # frontend não os lê (só em mostrarResultado/mostrarFim, nas fases
+        # resultado/fim_campeonato). Omiti-los durante o jogo enxuga o poll.
+        if not jogando:
+            resp["placar"] = estado["placar"]
+            resp["placar_times"] = estado["placar_times"]
+            resp["vitorias"] = estado["vitorias"]
+            resp["historico"] = estado["historico"]
+            resp["ranking"] = estado["ranking"]
+            if estado["fase"] in ("resultado", "fim_campeonato"):
+                resp["resumo"] = estado["resumo"]
         if palavras_coletivas is not None:
             resp["palavras_coletivas"] = palavras_coletivas
         if modo == "restricao" and jogando:
@@ -820,13 +827,8 @@ def get_estado(sala_id):
             resp["cresceu_ha"] = cresceu_ha
             resp["celulas_novas"] = celulas_novas
         if modo == "caca" and jogando:
-            if modo_cat == "cooperativo":
-                col2 = set()
-                for j in estado["jogadores"].values():
-                    col2 |= j["palavras"]
-                resp["progresso"] = {"achadas": len(col2), "total": len(estado["grade_palavras"])}
-            else:
-                resp["progresso"] = {"achadas": len(minhas), "total": len(estado["grade_palavras"])}
+            achadas = len(coletivas) if modo_cat == "cooperativo" else len(minhas)
+            resp["progresso"] = {"achadas": achadas, "total": len(estado["grade_palavras"])}
         payload = jsonify(resp)  # serializa ainda sob o LOCK (estado consistente)
 
     # persistência ao Supabase FORA do LOCK — I/O de rede não pode bloquear

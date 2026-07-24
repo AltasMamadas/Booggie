@@ -593,6 +593,7 @@ let pollTimer=null, telaAnterior="home", ultimoEstado=null;
 let difSel="medio", avisou30=false;
 let ultimaAchada=0, ultimoEmbaralho=0, dicaTimer=null;
 let souHost=false, ultimoCresceu=0, ultimoProg=0;
+let ultimaListaJSig=null;
 let palavrasAnteriores=new Set();
 const DICA_ESPERA=10000;
 
@@ -908,6 +909,7 @@ async function encerrarPartida(){
 // ---- polling ----
 function iniciarPoll(){
   if(pollTimer) clearInterval(pollTimer);
+  ultimaListaJSig=null;
   poll(); pollTimer=setInterval(poll,1500);
 }
 async function poll(){
@@ -997,13 +999,18 @@ function aplicarEstado(st){
 
   if(st.fase==="lobby"){
     $("qtd").textContent=st.jogadores.length;
-    $("lista-j").innerHTML=st.jogadores.map(j=>{
-      const cor=j.cor?COR_TIME[j.cor]:null;
-      const ttStyle=cor?`style="background:${cor};color:${COR_TIME_TEXT[j.cor]}"`:""
-      const tt=j.time?` <span class="time-badge" ${ttStyle}>${esc(j.time)}</span>`:"";
-      const host=j.nome===st.host?' <span class="time-badge">host</span>':"";
-      return `<span class="badge">${esc(j.nome)}${host}${tt}</span>`;
-    }).join("");
+    // só reconstrói a lista se algo mudou (evita thrash de DOM a cada 1,5s)
+    const sig=st.host+"|"+st.jogadores.map(j=>`${j.nome}:${j.time||""}:${j.cor||""}`).join(",");
+    if(sig!==ultimaListaJSig){
+      ultimaListaJSig=sig;
+      $("lista-j").innerHTML=st.jogadores.map(j=>{
+        const cor=j.cor?COR_TIME[j.cor]:null;
+        const ttStyle=cor?`style="background:${cor};color:${COR_TIME_TEXT[j.cor]}"`:""
+        const tt=j.time?` <span class="time-badge" ${ttStyle}>${esc(j.time)}</span>`:"";
+        const host=j.nome===st.host?' <span class="time-badge">host</span>':"";
+        return `<span class="badge">${esc(j.nome)}${host}${tt}</span>`;
+      }).join("");
+    }
     carregarPalavras();
   }
 

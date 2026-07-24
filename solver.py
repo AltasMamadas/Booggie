@@ -27,8 +27,17 @@ def dims(grade, linhas=None, colunas=None):
     return n, n
 
 
+_VIZ_CACHE = {}
+
+
 def _vizinhos_idx(linhas, colunas):
-    """Pré-computa vizinhos de cada célula pra grade linhas x colunas."""
+    """Pré-computa vizinhos de cada célula pra grade linhas x colunas.
+    Memoizado: as dimensões possíveis são poucas (4x4, 4x6, 6x6...), então o
+    resultado é reutilizado entre solves em vez de recomputado toda vez."""
+    chave = (linhas, colunas)
+    cached = _VIZ_CACHE.get(chave)
+    if cached is not None:
+        return cached
     total = linhas * colunas
     viz = [[] for _ in range(total)]
     for i in range(total):
@@ -40,6 +49,7 @@ def _vizinhos_idx(linhas, colunas):
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < linhas and 0 <= nc < colunas:
                     viz[i].append(nr * colunas + nc)
+    _VIZ_CACHE[chave] = viz
     return viz
 
 
